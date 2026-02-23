@@ -25,3 +25,19 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     }
   }
 });
+
+// Listen for tab updates to trigger metadata extraction
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete" && tab.url?.startsWith("http")) {
+    chrome.tabs.sendMessage(tabId, {
+      type: "EXTRACT_METADATA",
+    });
+  }
+});
+
+// Listen for messages from content scripts (e.g., metadata results)
+chrome.runtime.onMessage.addListener((message, sender) => {
+  if (message.type === "METADATA_RESULT") {
+    console.log("Metadata received:", message.data);
+  }
+});
