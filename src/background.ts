@@ -38,6 +38,51 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 // Listen for messages from content scripts (e.g., metadata results)
 chrome.runtime.onMessage.addListener((message, sender) => {
   if (message.type === "METADATA_RESULT") {
-    console.log("Metadata received:", message.data);
+    classifyTab(message.data, sender.tab?.id);
   }
 });
+
+async function classifyTab(
+  metadata: {
+    url: string;
+    domain: string;
+    title: string;
+    description: string;
+    textSnippet: string;
+  },
+  tabId?: number
+) {
+  try {
+    const { currentTask } = await chrome.storage.local.get(["currentTask"]);
+    const task = currentTask || "Study";
+
+    console.log("Sending to backend:", {
+      task,
+      metadata,
+    });
+
+    const response = await fetch("http://localhost:3001/classify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        task,
+        tab: metadata,
+      }),
+    });
+
+    const data = await response.json();
+
+    console.log("Classification result:", {
+      task,
+      url: metadata.url,
+      decision: data.decision,
+      raw: data.raw,
+      tabId,
+    });
+    console.log("LLM result:", data);
+  } catch (error) {
+    console.error("Error classifying tab:", error);
+  }
+}

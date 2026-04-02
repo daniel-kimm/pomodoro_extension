@@ -67,7 +67,7 @@ function App() {
     }
   }, [studyTimer, studySubject]);
 
-  const handleStart = () => {
+  const handleStart = async () => {
     if (!studySubject.trim()) {
       alert('Please enter a study subject');
       return;
@@ -75,6 +75,12 @@ function App() {
     const initialTime = studyTimer * 60;
     setIsRunning(true);
     setTimeRemaining(initialTime);
+
+    // Save current task for content script to use in tab classification
+    await chrome.storage.local.set({
+      currentTask: `Studying ${studySubject}`
+    })
+
     saveSettings({ isRunning: true, timeRemaining: initialTime });
   };
 

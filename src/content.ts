@@ -7,14 +7,22 @@ let isStudySessionActive = false;
 let studySubject = '';
 
 // Listen for messages from background script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'STUDY_SESSION_UPDATE') {
     isStudySessionActive = message.isRunning;
     studySubject = message.studySubject;
     // TODO: Add LLM-based tab detection and blurring logic here
     console.log('Study session update:', { isStudySessionActive, studySubject });
   }
-  return true;
+
+  if (message.type === "EXTRACT_METADATA") {
+    const metadata = extractMetadata();
+
+    chrome.runtime.sendMessage({
+      type: "METADATA_RESULT",
+      data: metadata,
+    });
+  }
 });
 
 // Load initial state
@@ -46,13 +54,3 @@ function extractMetadata() {
   };
 }
 
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === "EXTRACT_METADATA") {
-    const metadata = extractMetadata();
-
-    chrome.runtime.sendMessage({
-      type: "METADATA_RESULT",
-      data: metadata,
-    });
-  }
-});
