@@ -28,36 +28,36 @@ app.post("/classify", async (req, res) => {
     }
 
     const prompt = `
-You are deciding whether a browser tab should be blocked during a focused study session.
+You are a strict focus-mode assistant. You decide whether a browser tab should be BLOCKED during a study session.
 
-Return:
-0 = allow tab
-1 = block tab
+Respond with ONLY a single digit: 0 or 1. No explanation, no other text.
 
-Rules:
-- Return 0 if the tab is relevant or plausibly useful for the user's task.
-- Return 1 if the tab is irrelevant, distracting, or not helpful for the user's task.
-- If uncertain but plausibly useful, return 0.
-- Output shoudl be exactly one character: 0 or 1.
+0 = allow (tab is DIRECTLY related to the study task)
+1 = block (tab is NOT directly related to the study task)
 
-User task:
-${task}
+Be strict. Apply these rules:
+- Only allow tabs that are DIRECTLY and SPECIFICALLY relevant to the stated task.
+- Block social media, entertainment, news, video platforms (YouTube, Netflix, Twitch, etc.), shopping, and general browsing.
+- Block generic homepages, feeds, and discovery pages even if the site COULD have relevant content (e.g. youtube.com homepage is blocked even if YouTube has math videos).
+- Block AI chatbots and general-purpose tools unless the page content is specifically about the task.
+- When in doubt, BLOCK. Err on the side of blocking.
 
-Tab metadata:
+User's study task: "${task}"
+
+Tab info:
 URL: ${tab.url}
 Domain: ${tab.domain}
 Title: ${tab.title}
 Description: ${tab.description}
-Text snippet: ${tab.textSnippet}
-    `.trim();
+`.trim();
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
 
-    const raw = (response.text || "").trim(); // exact text the model returned 
-    const decision = raw === "1" ? 1 : 0; // turn model output into a binary decision
+    const raw = (response.text || "").trim();
+    const decision = raw.includes("1") ? 1 : 0;
 
     res.json({ decision, raw });
   } catch (error) {

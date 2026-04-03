@@ -8,17 +8,23 @@ chrome.runtime.onInstalled.addListener(() => {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local') {
     if (changes.isRunning || changes.studySubject) {
-      // Broadcast to all tabs that study session state changed
+      const sessionRunning = changes.isRunning?.newValue ?? false;
+
       chrome.tabs.query({}, (tabs) => {
         tabs.forEach((tab) => {
           if (tab.id) {
             chrome.tabs.sendMessage(tab.id, {
               type: 'STUDY_SESSION_UPDATE',
-              isRunning: changes.isRunning?.newValue ?? false,
+              isRunning: sessionRunning,
               studySubject: changes.studySubject?.newValue ?? ''
-            }).catch(() => {
-              // Ignore errors for tabs that don't have content script ready
-            });
+            }).catch(() => {});
+
+            if (!sessionRunning) {
+              chrome.tabs.sendMessage(tab.id, {
+                type: 'BLUR_DECISION',
+                shouldBlur: false,
+              }).catch(() => {});
+            }
           }
         });
       });
@@ -81,7 +87,13 @@ async function classifyTab(
       raw: data.raw,
       tabId,
     });
-    console.log("LLM result:", data);
+
+    if (tabId != null) {
+      chrome.tabs.sendMessage(tabId, {
+        type: "BLUR_DECISION",
+        shouldBlur: data.decision === 1,
+      }).catch(() => {});
+    }
   } catch (error) {
     console.error("Error classifying tab:", error);
   }
