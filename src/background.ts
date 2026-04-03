@@ -106,6 +106,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+  if (message.type === 'OPEN_POPUP') {
+    chrome.action.openPopup().catch(() => {});
+    sendResponse({ ok: true });
+    return true;
+  }
   if (message.type === 'METADATA_RESULT') {
     classifyTab(message.data, sender.tab?.id);
   }
