@@ -37,8 +37,8 @@ Respond with ONLY a single digit: 0 or 1. No explanation, no other text.
 
 Be strict. Apply these rules:
 - Only allow tabs that are DIRECTLY and SPECIFICALLY relevant to the stated task.
-- Block social media, entertainment, news, video platforms (YouTube, Netflix, Twitch, etc.), shopping, and general browsing.
-- Block generic homepages, feeds, and discovery pages even if the site COULD have relevant content (e.g. youtube.com homepage is blocked even if YouTube has math videos).
+- Block social media, entertainment, news, video platforms (Netflix, Twitch, etc.), shopping, and general browsing, unless it is directly related to the stated task.
+- Block generic homepages, feeds, and discovery pages even if the site COULD have relevant content.
 - Block AI chatbots and general-purpose tools unless the page content is specifically about the task.
 - When in doubt, BLOCK. Err on the side of blocking.
 
