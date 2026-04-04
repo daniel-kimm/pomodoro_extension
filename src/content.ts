@@ -1,9 +1,19 @@
-let isStudySessionActive = false;
+(function () {
+  const POMO_GUARD = '__pomoStudyExtension_cs_v1';
+  const g = globalThis as unknown as Record<string, boolean>;
+  if (g[POMO_GUARD]) {
+    chrome.runtime.sendMessage({ type: 'POMO_RESYNC_TAB' });
+    return;
+  }
+  g[POMO_GUARD] = true;
+
 let studySubject = '';
 let overlayEl: HTMLElement | null = null;
 let widgetEl: HTMLElement | null = null;
 let styleEl: HTMLStyleElement | null = null;
 let localTimeRemaining = 0;
+let localIsRunning = false;
+let localSessionStarted = false;
 
 function injectStyles() {
   if (styleEl) return;
@@ -38,13 +48,15 @@ function injectStyles() {
       top: 16px;
       right: 16px;
       z-index: 2147483647;
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
       background: #1a1a2e;
       color: #fff;
       font-family: system-ui, -apple-system, sans-serif;
       border-radius: 12px;
-      padding: 10px 14px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.3);
-      cursor: grab;
+      overflow: hidden;
       user-select: none;
       transition: box-shadow 0.2s;
     }
@@ -52,23 +64,103 @@ function injectStyles() {
       box-shadow: 0 6px 32px rgba(0,0,0,0.45);
     }
     #pomodoro-timer-widget.dragging {
-      cursor: grabbing;
       box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    }
+    #pomodoro-timer-widget .widget-main {
+      padding: 10px 12px 10px 14px;
+      cursor: grab;
+      min-width: 0;
+    }
+    #pomodoro-timer-widget.dragging .widget-main {
+      cursor: grabbing;
     }
     #pomodoro-timer-widget .widget-time {
       font-size: 28px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
       letter-spacing: 1px;
+      line-height: 1.1;
     }
     #pomodoro-timer-widget .widget-subject {
       font-size: 12px;
       opacity: 0.6;
-      margin-top: 2px;
+      margin-top: 4px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 200px;
+      max-width: 160px;
+    }
+    #pomodoro-timer-widget .widget-side {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      flex-shrink: 0;
+    }
+    #pomodoro-timer-widget .widget-side--hidden {
+      display: none;
+    }
+    #pomodoro-timer-widget .widget-divider {
+      width: 1px;
+      align-self: stretch;
+      background: rgba(255,255,255,0.12);
+      flex-shrink: 0;
+    }
+    #pomodoro-timer-widget .widget-actions {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 6px 8px;
+      flex-shrink: 0;
+    }
+    #pomodoro-timer-widget .widget-action-btn {
+      width: 36px;
+      height: 36px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #pomodoro-timer-widget .widget-action-btn:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    #pomodoro-timer-widget .widget-action-btn:active {
+      transform: scale(0.95);
+    }
+    #pomodoro-timer-widget .widget-action-btn--play {
+      background: rgba(56, 189, 248, 0.25);
+    }
+    #pomodoro-timer-widget .widget-action-btn--play:hover {
+      background: rgba(56, 189, 248, 0.4);
+    }
+    #pomodoro-timer-widget .widget-icon-pause {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      height: 14px;
+    }
+    #pomodoro-timer-widget .widget-icon-pause .bar {
+      width: 3px;
+      height: 14px;
+      background: currentColor;
+      border-radius: 1px;
+    }
+    #pomodoro-timer-widget .widget-toggle-play {
+      font-size: 14px;
+      line-height: 1;
+      margin-left: 2px;
+    }
+    #pomodoro-timer-widget .widget-action-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+      transform: none;
     }
   `;
   document.documentElement.appendChild(styleEl);
@@ -80,6 +172,20 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+/** Match popup logic: show widget for any active study session, including legacy storage without sessionStarted. */
+function shouldShowWidgetFromStorage(result: {
+  sessionStarted?: boolean;
+  isRunning?: boolean;
+  timeRemaining?: number;
+  studySubject?: string;
+}): boolean {
+  if (result.sessionStarted === false) return false;
+  if (result.sessionStarted === true) return true;
+  if (result.isRunning === true) return true;
+  if ((result.timeRemaining ?? 0) > 0 && Boolean(result.studySubject)) return true;
+  return false;
+}
+
 function createWidget() {
   if (widgetEl) return;
   injectStyles();
@@ -87,11 +193,37 @@ function createWidget() {
   widgetEl = document.createElement('div');
   widgetEl.id = 'pomodoro-timer-widget';
   widgetEl.innerHTML = `
-    <div class="widget-time" id="pomodoro-widget-time">--:--</div>
-    <div class="widget-subject" id="pomodoro-widget-subject"></div>
+    <div class="widget-main" id="pomodoro-widget-drag-area">
+      <div class="widget-time" id="pomodoro-widget-time">--:--</div>
+      <div class="widget-subject" id="pomodoro-widget-subject"></div>
+    </div>
+    <div class="widget-side" id="pomodoro-widget-side">
+      <div class="widget-divider" aria-hidden="true"></div>
+      <div class="widget-actions" id="pomodoro-widget-actions">
+        <button type="button" class="widget-action-btn" id="pomodoro-widget-toggle" title="Pause" aria-label="Pause timer"></button>
+      </div>
+    </div>
   `;
   document.documentElement.appendChild(widgetEl);
-  makeDraggable(widgetEl);
+
+  const dragArea = widgetEl.querySelector('#pomodoro-widget-drag-area') as HTMLElement;
+  makeDraggable(widgetEl, dragArea);
+
+  const toggleBtn = widgetEl.querySelector('#pomodoro-widget-toggle') as HTMLButtonElement;
+  toggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (localIsRunning) {
+      chrome.storage.local.set({ isRunning: false }, () => {
+        chrome.runtime.sendMessage({ type: 'PAUSE_TIMER' });
+      });
+    } else {
+      chrome.storage.local.set({ isRunning: true }, () => {
+        chrome.runtime.sendMessage({ type: 'RESUME_TIMER' });
+      });
+    }
+  });
+
   syncFromStorage();
 }
 
@@ -103,44 +235,78 @@ function removeWidget() {
 }
 
 function syncFromStorage() {
-  chrome.storage.local.get(['timeRemaining', 'isRunning', 'studySubject'], (result) => {
-    localTimeRemaining = result.timeRemaining ?? 0;
-    studySubject = result.studySubject ?? '';
-    renderWidget();
-  });
+  chrome.storage.local.get(
+    ['timeRemaining', 'isRunning', 'studySubject', 'sessionStarted'],
+    (result) => {
+      localTimeRemaining = result.timeRemaining ?? 0;
+      studySubject = result.studySubject ?? '';
+      localIsRunning = result.isRunning ?? false;
+      localSessionStarted = result.sessionStarted ?? false;
+      renderWidget();
+    }
+  );
 }
 
 function renderWidget() {
   const timeEl = document.getElementById('pomodoro-widget-time');
   const subjectEl = document.getElementById('pomodoro-widget-subject');
+  const toggleBtn = document.getElementById('pomodoro-widget-toggle') as HTMLButtonElement | null;
+  const sideEl = document.getElementById('pomodoro-widget-side');
+
   if (timeEl) timeEl.textContent = formatTime(localTimeRemaining);
   if (subjectEl) subjectEl.textContent = studySubject;
+
+  const canToggle =
+    localTimeRemaining > 0 &&
+    (localSessionStarted || localIsRunning || Boolean(studySubject));
+  if (toggleBtn && sideEl) {
+    if (!canToggle) {
+      sideEl.classList.add('widget-side--hidden');
+    } else {
+      sideEl.classList.remove('widget-side--hidden');
+      if (localIsRunning) {
+        toggleBtn.classList.remove('widget-action-btn--play');
+        toggleBtn.title = 'Pause';
+        toggleBtn.setAttribute('aria-label', 'Pause timer');
+        toggleBtn.innerHTML =
+          '<span class="widget-icon-pause" aria-hidden="true"><span class="bar"></span><span class="bar"></span></span>';
+      } else {
+        toggleBtn.classList.add('widget-action-btn--play');
+        toggleBtn.title = 'Continue';
+        toggleBtn.setAttribute('aria-label', 'Continue timer');
+        toggleBtn.innerHTML = '<span class="widget-toggle-play" aria-hidden="true">▶</span>';
+      }
+    }
+  }
 }
 
-function makeDraggable(el: HTMLElement) {
-  let offsetX = 0, offsetY = 0;
-  let startX = 0, startY = 0;
+function makeDraggable(widget: HTMLElement, handle: HTMLElement) {
+  let offsetX = 0,
+    offsetY = 0;
+  let startX = 0,
+    startY = 0;
   let didDrag = false;
 
-  el.addEventListener('mousedown', (e: MouseEvent) => {
+  handle.addEventListener('mousedown', (e: MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
     e.preventDefault();
     startX = e.clientX;
     startY = e.clientY;
-    offsetX = el.offsetLeft;
-    offsetY = el.offsetTop;
+    offsetX = widget.offsetLeft;
+    offsetY = widget.offsetTop;
     didDrag = false;
-    el.classList.add('dragging');
+    widget.classList.add('dragging');
 
     const onMove = (e: MouseEvent) => {
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag = true;
-      el.style.left = offsetX + dx + 'px';
-      el.style.top = offsetY + dy + 'px';
-      el.style.right = 'auto';
+      widget.style.left = offsetX + dx + 'px';
+      widget.style.top = offsetY + dy + 'px';
+      widget.style.right = 'auto';
     };
     const onUp = () => {
-      el.classList.remove('dragging');
+      widget.classList.remove('dragging');
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       if (!didDrag) {
@@ -152,11 +318,41 @@ function makeDraggable(el: HTMLElement) {
   });
 }
 
-// Keep local state in sync when storage changes (pause/resume/reset from popup)
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
   if (changes.timeRemaining != null) localTimeRemaining = changes.timeRemaining.newValue ?? 0;
   if (changes.studySubject != null) studySubject = changes.studySubject.newValue ?? '';
+  if (changes.isRunning != null) localIsRunning = changes.isRunning.newValue ?? false;
+  if (changes.sessionStarted != null) localSessionStarted = changes.sessionStarted.newValue ?? false;
+
+  const mayAffectWidget =
+    changes.sessionStarted != null ||
+    changes.timeRemaining != null ||
+    changes.isRunning != null ||
+    changes.studySubject != null;
+
+  if (mayAffectWidget) {
+    chrome.storage.local.get(
+      ['sessionStarted', 'isRunning', 'timeRemaining', 'studySubject'],
+      (r) => {
+        localSessionStarted = r.sessionStarted ?? false;
+        localTimeRemaining = r.timeRemaining ?? 0;
+        localIsRunning = r.isRunning ?? false;
+        if (r.studySubject != null) studySubject = r.studySubject;
+
+        if (!shouldShowWidgetFromStorage(r)) {
+          removeWidget();
+          removeOverlay();
+        } else if (!widgetEl) {
+          createWidget();
+        } else {
+          renderWidget();
+        }
+      }
+    );
+    return;
+  }
+
   renderWidget();
 });
 
@@ -180,17 +376,31 @@ function removeOverlay() {
   }
 }
 
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'STUDY_SESSION_UPDATE') {
-    isStudySessionActive = message.isRunning;
-    studySubject = message.studySubject;
+function applySessionUpdate(studySubjectFromMsg: string) {
+  if (studySubjectFromMsg) studySubject = studySubjectFromMsg;
+  chrome.storage.local.get(['sessionStarted', 'timeRemaining', 'isRunning', 'studySubject'], (r) => {
+    localTimeRemaining = r.timeRemaining ?? 0;
+    localIsRunning = r.isRunning ?? false;
+    if (r.studySubject) studySubject = r.studySubject;
+    localSessionStarted = r.sessionStarted ?? false;
+    if (r.sessionStarted === undefined && shouldShowWidgetFromStorage(r)) {
+      chrome.storage.local.set({ sessionStarted: true });
+      localSessionStarted = true;
+    }
 
-    if (isStudySessionActive) {
+    if (shouldShowWidgetFromStorage(r)) {
       createWidget();
+      renderWidget();
     } else {
       removeWidget();
       removeOverlay();
     }
+  });
+}
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'STUDY_SESSION_UPDATE') {
+    applySessionUpdate(message.studySubject ?? '');
   }
 
   if (message.type === 'BLUR_DECISION') {
@@ -210,13 +420,22 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
-chrome.storage.local.get(['isRunning', 'studySubject', 'timeRemaining'], (result) => {
-  isStudySessionActive = result.isRunning ?? false;
-  studySubject = result.studySubject ?? '';
-  if (isStudySessionActive) {
-    createWidget();
+chrome.storage.local.get(
+  ['isRunning', 'studySubject', 'timeRemaining', 'sessionStarted'],
+  (result) => {
+    studySubject = result.studySubject ?? '';
+    localSessionStarted = result.sessionStarted ?? false;
+    localTimeRemaining = result.timeRemaining ?? 0;
+    localIsRunning = result.isRunning ?? false;
+    if (result.sessionStarted === undefined && shouldShowWidgetFromStorage(result)) {
+      chrome.storage.local.set({ sessionStarted: true });
+      localSessionStarted = true;
+    }
+    if (shouldShowWidgetFromStorage(result)) {
+      createWidget();
+    }
   }
-});
+);
 
 function extractMetadata() {
   const url = window.location.href;
@@ -228,3 +447,5 @@ function extractMetadata() {
 
   return { url, domain, title, description, textSnippet };
 }
+
+})();

@@ -130,13 +130,23 @@ function App() {
 
   const showSetup = !sessionStarted;
   const canResume = sessionStarted && !isRunning && timeRemaining > 0;
+  const sessionDone = sessionStarted && !isRunning && timeRemaining <= 0;
 
   return (
     <div className="popup">
-      <div className="header">
-        <h1>🍅 Pomodoro Study</h1>
-      </div>
+      <header className="popup-header">
+        <div className="popup-header__brand">
+          <div className="popup-header__icon" aria-hidden>
+            🍅
+          </div>
+          <div className="popup-header__text">
+            <h1>Pomodoro Study</h1>
+            <p>Focus sessions that keep running in the background</p>
+          </div>
+        </div>
+      </header>
 
+      <main className="popup-main">
       {showSetup ? (
         <div className="setup-section">
           <div className="form-group">
@@ -182,11 +192,34 @@ function App() {
         </div>
       ) : (
         <div className="timer-section">
+          <div
+            className={
+              'timer-status ' +
+              (isRunning
+                ? 'timer-status--running'
+                : canResume
+                  ? 'timer-status--paused'
+                  : 'timer-status--done')
+            }
+            role="status"
+            aria-live="polite"
+          >
+            <span className="timer-status__dot" aria-hidden />
+            {isRunning ? 'Focusing' : canResume ? 'Paused' : 'Session ended'}
+          </div>
+
           <div className="timer-display">
-            <div className="timer-circle">
-              <div className="timer-text">{formatTime(timeRemaining)}</div>
+            <div className="timer-ring-wrap">
+              <div className="timer-ring">
+                <div className="timer-ring__inner">
+                  <span className="timer-text">{formatTime(timeRemaining)}</span>
+                  <span className="timer-label">Remaining</span>
+                </div>
+              </div>
             </div>
-            <div className="subject-display">Studying: {studySubject}</div>
+            <div className="subject-display">
+              <strong>Subject</strong> — {studySubject || '—'}
+            </div>
           </div>
 
           <div className="timer-controls">
@@ -199,12 +232,18 @@ function App() {
                 Resume
               </button>
             ) : null}
-            <button type="button" onClick={handleReset} className="btn btn-secondary">
+            <button
+              type="button"
+              onClick={handleReset}
+              className={sessionDone ? 'btn btn-secondary' : 'btn btn-ghost'}
+              title="End session and return to setup"
+            >
               Reset
             </button>
           </div>
         </div>
       )}
+      </main>
 
       <div className="info-text">
         Timer keeps running when this popup is closed. Check the badge on the extension icon.

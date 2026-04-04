@@ -5,6 +5,110 @@
 
 const ALARM_NAME = 'pomodoro-timer';
 
+function getManifestContentScriptFiles(): string[] {
+  const m = chrome.runtime.getManifest() as unknown as {
+    content_scripts?: { js?: string[] }[];
+  };
+  return m.content_scripts?.[0]?.js ?? [];
+}
+
+/** URLs where Chrome allows injecting / messaging (not chrome://, Web Store, etc.). */
+function isInjectablePageUrl(url: string | undefined): boolean {
+  if (!url) return false;
+  if (
+    url.startsWith('chrome://') ||
+    url.startsWith('chrome-extension://') ||
+    url.startsWith('edge://') ||
+    url.startsWith('about:') ||
+    url.startsWith('devtools:') ||
+    url.startsWith('chrome-untrusted:')
+  ) {
+    return false;
+  }
+  if (url.includes('chromewebstore.google.com') || url.includes('chrome.google.com/webstore')) {
+    return false;
+  }
+  try {
+    const u = new URL(url);
+    return u.protocol === 'http:' || u.protocol === 'https:' || u.protocol === 'file:';
+  } catch {
+    return false;
+  }
+}
+
+function storageLooksLikeActiveStudySession(r: {
+  sessionStarted?: boolean;
+  isRunning?: boolean;
+  timeRemaining?: number;
+  studySubject?: string;
+}): boolean {
+  if (r.sessionStarted === false) return false;
+  if (r.sessionStarted === true) return true;
+  if (r.isRunning === true) return true;
+  if ((r.timeRemaining ?? 0) > 0 && Boolean(r.studySubject)) return true;
+  return false;
+}
+
+function pushStudySessionToTab(
+  tabId: number,
+  tabUrl: string | undefined,
+  isRunning: boolean,
+  studySubject: string
+): void {
+  if (!isInjectablePageUrl(tabUrl)) return;
+  const payload = {
+    type: 'STUDY_SESSION_UPDATE' as const,
+    isRunning,
+    studySubject,
+  };
+  chrome.tabs.sendMessage(tabId, payload).catch(() => {
+    const files = getManifestContentScriptFiles();
+    if (files.length === 0) return;
+    chrome.scripting
+      .executeScript({ target: { tabId }, files })
+      .then(() => {
+        chrome.tabs.sendMessage(tabId, payload).catch(() => {});
+      })
+      .catch(() => {});
+  });
+}
+
+function broadcastStudySessionToAllTabs(): void {
+  chrome.storage.local.get(
+    ['isRunning', 'studySubject', 'sessionStarted', 'timeRemaining'],
+    (r) => {
+      const sessionRunning = r.isRunning ?? false;
+      const studySubject = r.studySubject ?? '';
+      chrome.tabs.query({}, (tabs) => {
+        for (const tab of tabs) {
+          const id = tab.id;
+          if (id == null) continue;
+          pushStudySessionToTab(id, tab.url, sessionRunning, studySubject);
+          if (!sessionRunning && isInjectablePageUrl(tab.url)) {
+            chrome.tabs
+              .sendMessage(id, { type: 'BLUR_DECISION', shouldBlur: false })
+              .catch(() => {});
+          }
+        }
+      });
+    }
+  );
+}
+
+function pushMetadataRequest(tabId: number, tabUrl: string | undefined): void {
+  if (!isInjectablePageUrl(tabUrl)) return;
+  chrome.tabs.sendMessage(tabId, { type: 'EXTRACT_METADATA' }).catch(() => {
+    const files = getManifestContentScriptFiles();
+    if (files.length === 0) return;
+    chrome.scripting
+      .executeScript({ target: { tabId }, files })
+      .then(() => {
+        chrome.tabs.sendMessage(tabId, { type: 'EXTRACT_METADATA' }).catch(() => {});
+      })
+      .catch(() => {});
+  });
+}
+
 function formatBadge(seconds: number): string {
   if (seconds <= 0) return '0';
   if (seconds < 60) return `${seconds}s`;
@@ -114,6 +218,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'METADATA_RESULT') {
     classifyTab(message.data, sender.tab?.id);
   }
+  if (message.type === 'POMO_RESYNC_TAB') {
+    const tabId = sender.tab?.id;
+    if (tabId != null) {
+      chrome.storage.local.get(['isRunning', 'studySubject'], (r) => {
+        chrome.tabs
+          .sendMessage(tabId, {
+            type: 'STUDY_SESSION_UPDATE',
+            isRunning: r.isRunning ?? false,
+            studySubject: r.studySubject ?? '',
+          })
+          .catch(() => {});
+      });
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
   return false;
 });
 
@@ -131,39 +251,21 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     syncBadge();
   }
 
-  if (changes.isRunning || changes.studySubject) {
-    chrome.storage.local.get(['isRunning', 'studySubject'], (r) => {
-      const sessionRunning = r.isRunning ?? false;
-      chrome.tabs.query({}, (tabs) => {
-        tabs.forEach((tab) => {
-          if (tab.id) {
-            chrome.tabs
-              .sendMessage(tab.id, {
-                type: 'STUDY_SESSION_UPDATE',
-                isRunning: sessionRunning,
-                studySubject: r.studySubject ?? '',
-              })
-              .catch(() => {});
-
-            if (!sessionRunning) {
-              chrome.tabs
-                .sendMessage(tab.id, {
-                  type: 'BLUR_DECISION',
-                  shouldBlur: false,
-                })
-                .catch(() => {});
-            }
-          }
-        });
-      });
-    });
+  if (changes.isRunning || changes.studySubject || changes.sessionStarted) {
+    broadcastStudySessionToAllTabs();
   }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url?.startsWith('http')) {
-    chrome.tabs.sendMessage(tabId, { type: 'EXTRACT_METADATA' });
-  }
+  if (changeInfo.status !== 'complete' || tab.url == null) return;
+  pushMetadataRequest(tabId, tab.url);
+  chrome.storage.local.get(
+    ['sessionStarted', 'isRunning', 'timeRemaining', 'studySubject'],
+    (r) => {
+      if (!storageLooksLikeActiveStudySession(r)) return;
+      pushStudySessionToTab(tabId, tab.url, r.isRunning ?? false, r.studySubject ?? '');
+    }
+  );
 });
 
 async function classifyTab(
