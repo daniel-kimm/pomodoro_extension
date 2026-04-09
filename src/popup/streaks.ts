@@ -6,6 +6,7 @@ export type StreakData = {
   lastCompletedDate: string | null;
   todayCompleted: boolean;
   lastTrackedDate: string | null;
+  countedSessionKey: string | null;
 };
 
 export const DEFAULT_STREAK_DATA: StreakData = {
@@ -16,25 +17,138 @@ export const DEFAULT_STREAK_DATA: StreakData = {
   lastCompletedDate: null,
   todayCompleted: false,
   lastTrackedDate: null,
+  countedSessionKey: null,
 };
 
-const STREAK_STORAGE_KEY = "streakData";
+const STREAK_STORAGE_KEY = 'streakData';
 
 export function getTodayDateString(): string {
   const now = new Date();
   const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
-export function getDateStringOffset(baseDateString: string, dayOffset: number): string {
-  const base = new Date(`${baseDateString}T12:00:00`);
-  base.setDate(base.getDate() + dayOffset);
+export function getDateOffset(dateString: string, offset: number): string {
+  const date = new Date(`${dateString}T12:00:00`);
+  date.setDate(date.getDate() + offset);
 
-  const year = base.getFullYear();
-  const month = String(base.getMonth() + 1).padStart(2, "0");
-  const day = String(base.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export async function loadStreakData(): Promise<StreakData> {
+  const result = await chrome.storage.local.get(STREAK_STORAGE_KEY);
+  const stored = result[STREAK_STORAGE_KEY] as Partial<StreakData> | undefined;
+
+  return {
+    ...DEFAULT_STREAK_DATA,
+    ...stored,
+  };
+}
+
+export async function saveStreakData(data: StreakData): Promise<void> {
+  await chrome.storage.local.set({
+    [STREAK_STORAGE_KEY]: data,
+  });
+}
+
+export function resetDailyProgressIfNeeded(data: StreakData, today = getTodayDateString()): StreakData {
+  if (data.lastTrackedDate === today) {
+    return data;
+  }
+
+  return {
+    ...data,
+    todayProductiveMinutes: 0,
+    todayCompleted: false,
+    lastTrackedDate: today,
+    countedSessionKey: null,
+  };
+}
+
+export function applyGoalCompletion(data: StreakData, today = getTodayDateString()): StreakData {
+  if (data.todayCompleted) {
+    return data;
+  }
+
+  if (data.todayProductiveMinutes < data.dailyGoalMinutes) {
+    return data;
+  }
+
+  const yesterday = getDateOffset(today, -1);
+
+  let nextStreak = 1;
+
+  if (data.lastCompletedDate === yesterday) {
+    nextStreak = data.currentStreak + 1;
+  } else if (data.lastCompletedDate === today) {
+    nextStreak = data.currentStreak;
+  } else {
+    nextStreak = 1;
+  }
+
+  return {
+    ...data,
+    todayCompleted: true,
+    currentStreak: nextStreak,
+    longestStreak: Math.max(data.longestStreak, nextStreak),
+    lastCompletedDate: today,
+  };
+}
+
+export async function initializeStreakData(): Promise<StreakData> {
+  const loaded = await loadStreakData();
+  const normalized = resetDailyProgressIfNeeded(loaded);
+  await saveStreakData(normalized);
+  return normalized;
+}
+
+export async function addProductiveMinutes(minutes: number, sessionKey?: string): Promise<StreakData> {
+  if (minutes <= 0) {
+    return initializeStreakData();
+  }
+
+  const loaded = await loadStreakData();
+  const reset = resetDailyProgressIfNeeded(loaded);
+
+  if (sessionKey && reset.countedSessionKey === sessionKey) {
+    return reset;
+  }
+
+  const updated: StreakData = {
+    ...reset,
+    todayProductiveMinutes: reset.todayProductiveMinutes + minutes,
+    countedSessionKey: sessionKey ?? reset.countedSessionKey,
+  };
+
+  const completed = applyGoalCompletion(updated);
+  await saveStreakData(completed);
+  return completed;
+}
+
+export async function setDailyGoalMinutes(goal: number): Promise<StreakData> {
+  const safeGoal = Math.max(1, Math.floor(goal));
+
+  const loaded = await loadStreakData();
+  const reset = resetDailyProgressIfNeeded(loaded);
+
+  const updated: StreakData = {
+    ...reset,
+    dailyGoalMinutes: safeGoal,
+  };
+
+  const completed = applyGoalCompletion(updated);
+  await saveStreakData(completed);
+  return completed;
+}
+
+export function getRemainingMinutes(data: StreakData): number {
+  return Math.max(0, data.dailyGoalMinutes - data.todayProductiveMinutes);
+}  const day = String(base.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
