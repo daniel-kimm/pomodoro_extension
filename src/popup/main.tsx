@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom/client';
 import { AuthProvider } from '../hooks/useAuth';
 import App from './App';
 import './popup.css';
+import { startStreakWatcher } from './streakWatcher';
+
+startStreakWatcher();
 
 const rootElement = document.getElementById('root');
 
