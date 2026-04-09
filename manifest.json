@@ -17,6 +17,6 @@
       "js": ["src/content.ts"]
     }
   ],
-  "permissions": ["activeTab", "storage", "tabs", "alarms", "scripting"],
+  "permissions": ["activeTab", "storage", "tabs", "alarms", "scripting", "identity"],
   "host_permissions": ["<all_urls>", "http://localhost:3001/*"]
 }

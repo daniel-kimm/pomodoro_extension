@@ -258,11 +258,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || tab.url == null) return;
-  pushMetadataRequest(tabId, tab.url);
   chrome.storage.local.get(
     ['sessionStarted', 'isRunning', 'timeRemaining', 'studySubject'],
     (r) => {
       if (!storageLooksLikeActiveStudySession(r)) return;
+      if (r.isRunning) pushMetadataRequest(tabId, tab.url);
       pushStudySessionToTab(tabId, tab.url, r.isRunning ?? false, r.studySubject ?? '');
     }
   );
@@ -279,7 +279,9 @@ async function classifyTab(
   tabId?: number
 ) {
   try {
-    const { currentTask } = await chrome.storage.local.get(['currentTask']);
+    const { currentTask, isRunning } = await chrome.storage.local.get(['currentTask', 'isRunning']);
+    if (!isRunning) return;
+
     const task = currentTask || 'Study';
 
     console.log('Sending to backend:', {
