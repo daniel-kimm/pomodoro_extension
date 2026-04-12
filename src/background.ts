@@ -218,6 +218,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'METADATA_RESULT') {
     classifyTab(message.data, sender.tab?.id);
   }
+  if (message.type === 'GOOGLE_AUTH_FLOW') {
+    chrome.identity.launchWebAuthFlow(
+      { url: message.url, interactive: true },
+      (callbackUrl) => {
+        if (chrome.runtime.lastError || !callbackUrl) {
+          chrome.storage.local.set({ pendingAuth: null });
+          sendResponse({ error: chrome.runtime.lastError?.message ?? 'Auth cancelled' });
+          return;
+        }
+        try {
+          const hashParams = new URLSearchParams(new URL(callbackUrl).hash.substring(1));
+          const access_token = hashParams.get('access_token');
+          const refresh_token = hashParams.get('refresh_token');
+          if (access_token && refresh_token) {
+            chrome.storage.local.set({ pendingAuth: { access_token, refresh_token } });
+            sendResponse({ access_token, refresh_token });
+          } else {
+            chrome.storage.local.set({ pendingAuth: null });
+            sendResponse({ error: 'Missing tokens in callback' });
+          }
+        } catch {
+          chrome.storage.local.set({ pendingAuth: null });
+          sendResponse({ error: 'Failed to parse auth callback' });
+        }
+      }
+    );
+    return true;
+  }
   if (message.type === 'POMO_RESYNC_TAB') {
     const tabId = sender.tab?.id;
     if (tabId != null) {

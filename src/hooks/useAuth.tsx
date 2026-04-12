@@ -54,16 +54,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+    async function init() {
+      const stored = await chrome.storage.local.get('pendingAuth');
+      if (stored.pendingAuth?.access_token && stored.pendingAuth?.refresh_token) {
+        await supabase.auth.setSession({
+          access_token: stored.pendingAuth.access_token,
+          refresh_token: stored.pendingAuth.refresh_token,
+        });
+        await chrome.storage.local.remove('pendingAuth');
+      }
+
+      const { data: { session: s } } = await supabase.auth.getSession();
       if (!mounted) return;
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
-        fetchProfile(s.user.id).finally(() => mounted && setLoading(false));
-      } else {
-        setLoading(false);
+        await fetchProfile(s.user.id);
       }
-    });
+      if (mounted) setLoading(false);
+    }
+
+    init();
 
     const {
       data: { subscription },
@@ -98,30 +109,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error || !data.url) throw error ?? new Error('No OAuth URL returned');
 
-    const responseUrl = await new Promise<string>((resolve, reject) => {
-      chrome.identity.launchWebAuthFlow(
-        { url: data.url, interactive: true },
-        (callbackUrl) => {
-          if (chrome.runtime.lastError || !callbackUrl) {
-            reject(new Error(chrome.runtime.lastError?.message ?? 'Auth cancelled'));
-          } else {
-            resolve(callbackUrl);
-          }
-        }
-      );
-    });
+    const response: { access_token?: string; refresh_token?: string; error?: string } =
+      await chrome.runtime.sendMessage({
+        type: 'GOOGLE_AUTH_FLOW',
+        url: data.url,
+      });
 
-    const hashParams = new URLSearchParams(new URL(responseUrl).hash.substring(1));
-    const access_token = hashParams.get('access_token');
-    const refresh_token = hashParams.get('refresh_token');
+    if (response?.error) throw new Error(response.error);
 
-    if (!access_token || !refresh_token) throw new Error('Missing tokens in callback');
-
-    const { error: sessionError } = await supabase.auth.setSession({
-      access_token,
-      refresh_token,
-    });
-    if (sessionError) throw sessionError;
+    if (response?.access_token && response?.refresh_token) {
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+      if (sessionError) throw sessionError;
+      await chrome.storage.local.remove('pendingAuth');
+    }
   }, []);
 
   const signOut = useCallback(async () => {
