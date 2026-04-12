@@ -55,16 +55,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     async function init() {
-      const stored = await chrome.storage.local.get('pendingAuth');
-      if (stored.pendingAuth?.access_token && stored.pendingAuth?.refresh_token) {
-        await supabase.auth.setSession({
-          access_token: stored.pendingAuth.access_token,
-          refresh_token: stored.pendingAuth.refresh_token,
-        });
-        await chrome.storage.local.remove('pendingAuth');
+      // Wait for Supabase's internal _initialize() to finish first.
+      // This prevents racing with _recoverAndRefresh on the same refresh token.
+      let { data: { session: s } } = await supabase.auth.getSession();
+
+      // If no valid session, check if the background script stored OAuth tokens.
+      if (!s) {
+        const stored = await chrome.storage.local.get('pendingAuth');
+        if (stored.pendingAuth?.access_token && stored.pendingAuth?.refresh_token) {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: stored.pendingAuth.access_token,
+            refresh_token: stored.pendingAuth.refresh_token,
+          });
+          if (!error && data.session) {
+            s = data.session;
+          }
+          // Only clear pendingAuth after a successful setSession
+          if (!error) {
+            await chrome.storage.local.remove('pendingAuth');
+          }
+        }
       }
 
-      const { data: { session: s } } = await supabase.auth.getSession();
       if (!mounted) return;
       setSession(s);
       setUser(s?.user ?? null);

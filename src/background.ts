@@ -228,15 +228,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
         try {
-          const hashParams = new URLSearchParams(new URL(callbackUrl).hash.substring(1));
-          const access_token = hashParams.get('access_token');
-          const refresh_token = hashParams.get('refresh_token');
+          const url = new URL(callbackUrl);
+          const hashParams = new URLSearchParams(url.hash.substring(1));
+          const queryParams = url.searchParams;
+          const access_token = hashParams.get('access_token') ?? queryParams.get('access_token');
+          const refresh_token = hashParams.get('refresh_token') ?? queryParams.get('refresh_token');
           if (access_token && refresh_token) {
             chrome.storage.local.set({ pendingAuth: { access_token, refresh_token } });
             sendResponse({ access_token, refresh_token });
           } else {
             chrome.storage.local.set({ pendingAuth: null });
-            sendResponse({ error: 'Missing tokens in callback' });
+            sendResponse({ error: 'Missing tokens in callback URL' });
           }
         } catch {
           chrome.storage.local.set({ pendingAuth: null });
