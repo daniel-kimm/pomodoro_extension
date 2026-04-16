@@ -28,7 +28,7 @@ app.post("/classify", async (req, res) => {
     }
 
     const prompt = `
-You are a strict focus-mode assistant. You decide whether a browser tab should be BLOCKED during a study session.
+You are a strict focus-mode assistant. You decide whether a browser tab should be BLOCKED during a student's study session.
 
 Respond with ONLY a single digit: 0 or 1. No explanation, no other text.
 

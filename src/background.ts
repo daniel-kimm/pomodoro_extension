@@ -109,6 +109,15 @@ function pushMetadataRequest(tabId: number, tabUrl: string | undefined): void {
   });
 }
 
+function reclassifyAllTabs(): void {
+  chrome.tabs.query({}, (tabs) => {
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      pushMetadataRequest(tab.id, tab.url);
+    }
+  });
+}
+
 function formatBadge(seconds: number): string {
   if (seconds <= 0) return '0';
   if (seconds < 60) return `${seconds}s`;
@@ -201,6 +210,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'RESUME_TIMER') {
     scheduleNextTick();
     syncBadge();
+    reclassifyAllTabs(); // When resuming, reclassify all tabs to ensure blocking state is correct
     sendResponse({ ok: true });
     return true;
   }
@@ -217,6 +227,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === 'METADATA_RESULT') {
     classifyTab(message.data, sender.tab?.id);
+    sendResponse({ ok: true });
+    return true;
   }
   if (message.type === 'GOOGLE_AUTH_FLOW') {
     chrome.identity.launchWebAuthFlow(
