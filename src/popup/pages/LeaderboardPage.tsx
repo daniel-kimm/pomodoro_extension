@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth, type Profile } from '../../hooks/useAuth';
 import { supabase } from '../../lib/supabase';
+import { STUDY_TIME_SYNC_SIGNAL_KEY } from '../studyTimeTracker';
 
 function formatStudyTime(totalSeconds: number): string {
   if (totalSeconds < 60) return `${totalSeconds}s`;
@@ -11,7 +12,7 @@ function formatStudyTime(totalSeconds: number): string {
 }
 
 export default function LeaderboardPage() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [entries, setEntries] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,6 +54,23 @@ export default function LeaderboardPage() {
     loadLeaderboard();
   }, [loadLeaderboard]);
 
+  useEffect(() => {
+    if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) return;
+
+    const listener = (
+      changes: { [key: string]: chrome.storage.StorageChange },
+      areaName: string
+    ) => {
+      if (areaName !== 'local') return;
+      if (!changes[STUDY_TIME_SYNC_SIGNAL_KEY]) return;
+
+      void refreshProfile();
+      void loadLeaderboard();
+    };
+
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
+  }, [loadLeaderboard, refreshProfile]);
   if (loading) {
     return (
       <div className="leaderboard-page">
