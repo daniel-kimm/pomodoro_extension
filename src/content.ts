@@ -9,6 +9,14 @@
 
 let studySubject = '';
 let overlayEl: HTMLElement | null = null;
+/** Snapshot of media we paused when blocking; restored when overlay is removed. */
+let blockedMediaSnapshot: Array<{
+  el: HTMLMediaElement;
+  wasPaused: boolean;
+}> | null = null;
+/** YouTube and similar sites call play() again after pause(); keep forcing pause while overlay is up. */
+let mediaEnforceIntervalId: ReturnType<typeof setInterval> | null = null;
+let mediaPlayBlockHandler: ((e: Event) => void) | null = null;
 let widgetEl: HTMLElement | null = null;
 let styleEl: HTMLStyleElement | null = null;
 let localTimeRemaining = 0;
@@ -356,9 +364,103 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   renderWidget();
 });
 
+function queryAllMediaInDocument(root: Document | ShadowRoot): HTMLMediaElement[] {
+  const seen = new Set<HTMLMediaElement>();
+  const add = (el: Element) => {
+    if (el instanceof HTMLMediaElement) {
+      seen.add(el);
+    }
+  };
+  const walk = (r: Document | ShadowRoot) => {
+    r.querySelectorAll('video, audio').forEach((n) => add(n));
+    r.querySelectorAll('*').forEach((node) => {
+      if (node instanceof Element && node.shadowRoot) {
+        walk(node.shadowRoot);
+      }
+    });
+  };
+  walk(root);
+  return [...seen];
+}
+
+/** Pause playing videos/audio before the block overlay (e.g. YouTube) so audio does not continue underneath. */
+function pauseMediaBeforeBlock() {
+  if (blockedMediaSnapshot !== null) return;
+
+  const mediaEls = queryAllMediaInDocument(document);
+  blockedMediaSnapshot = mediaEls.map((el) => ({
+    el,
+    wasPaused: el.paused,
+  }));
+
+  for (const { el } of blockedMediaSnapshot) {
+    try {
+      el.pause();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function startBlockingMediaEnforcement() {
+  stopBlockingMediaEnforcement();
+
+  const forcePauseAll = () => {
+    if (!overlayEl) return;
+    try {
+      for (const el of queryAllMediaInDocument(document)) {
+        if (!el.paused) el.pause();
+      }
+    } catch {
+      /* ignore */
+    }
+  };
+
+  mediaEnforceIntervalId = window.setInterval(forcePauseAll, 120);
+  forcePauseAll();
+
+  mediaPlayBlockHandler = (e: Event) => {
+    if (!overlayEl) return;
+    const t = e.target;
+    if (t instanceof HTMLMediaElement) {
+      t.pause();
+    }
+  };
+  document.addEventListener('play', mediaPlayBlockHandler, true);
+  document.addEventListener('playing', mediaPlayBlockHandler, true);
+}
+
+function stopBlockingMediaEnforcement() {
+  if (mediaEnforceIntervalId != null) {
+    window.clearInterval(mediaEnforceIntervalId);
+    mediaEnforceIntervalId = null;
+  }
+  if (mediaPlayBlockHandler) {
+    document.removeEventListener('play', mediaPlayBlockHandler, true);
+    document.removeEventListener('playing', mediaPlayBlockHandler, true);
+    mediaPlayBlockHandler = null;
+  }
+}
+
+function restoreMediaAfterUnblock() {
+  if (!blockedMediaSnapshot) return;
+  for (const { el, wasPaused } of blockedMediaSnapshot) {
+    try {
+      if (!wasPaused && el.isConnected) {
+        void el.play().catch(() => {});
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  blockedMediaSnapshot = null;
+}
+
 function createOverlay() {
   if (overlayEl) return;
   injectStyles();
+
+  pauseMediaBeforeBlock();
 
   overlayEl = document.createElement('div');
   overlayEl.id = 'pomodoro-blur-overlay';
@@ -367,13 +469,16 @@ function createOverlay() {
     <p>Stay focused — get back to studying!</p>
   `;
   document.documentElement.appendChild(overlayEl);
+  startBlockingMediaEnforcement();
 }
 
 function removeOverlay() {
+  stopBlockingMediaEnforcement();
   if (overlayEl) {
     overlayEl.remove();
     overlayEl = null;
   }
+  restoreMediaAfterUnblock();
 }
 
 function applySessionUpdate(studySubjectFromMsg: string) {
