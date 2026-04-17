@@ -1,9 +1,17 @@
+import { startStreakWatcher } from './popup/streakWatcher';
+import {
+  finalizeTrackedStudySegment,
+  flushPendingTrackedStudySeconds,
+  startTrackedStudySegment,
+} from './popup/studyTimeTracker';
+
 // Background service worker (Manifest V3) — owns the Pomodoro countdown so it keeps running
 // when the toolbar popup is closed.
 //
 // Chrome requires alarm periodInMinutes >= 1; sub-minute ticks use one-shot alarms via `when`.
 
 const ALARM_NAME = 'pomodoro-timer';
+startStreakWatcher();
 
 function getManifestContentScriptFiles(): string[] {
   const m = chrome.runtime.getManifest() as unknown as {
@@ -172,7 +180,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
 
     const newTime = Math.max(0, (result.timeRemaining || 0) - 1);
+
     if (newTime <= 0) {
+      void finalizeTrackedStudySegment(0);
       chrome.storage.local.set(
         {
           isRunning: false,
@@ -196,28 +206,49 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'START_TIMER') {
-    scheduleNextTick();
-    syncBadge();
-    sendResponse({ ok: true });
+    chrome.storage.local.get(['timeRemaining'], (result) => {
+      void startTrackedStudySegment(result.timeRemaining ?? 0);
+      scheduleNextTick();
+      syncBadge();
+      sendResponse({ ok: true });
+    });
     return true;
   }
   if (message.type === 'PAUSE_TIMER') {
-    chrome.alarms.clear(ALARM_NAME);
-    syncBadge();
-    sendResponse({ ok: true });
+    chrome.storage.local.get(['timeRemaining'], (result) => {
+      chrome.alarms.clear(ALARM_NAME);
+      void finalizeTrackedStudySegment(result.timeRemaining ?? 0);
+      syncBadge();
+      sendResponse({ ok: true });
+    });
     return true;
   }
   if (message.type === 'RESUME_TIMER') {
-    scheduleNextTick();
-    syncBadge();
-    reclassifyAllTabs(); // When resuming, reclassify all tabs to ensure blocking state is correct
-    sendResponse({ ok: true });
+    chrome.storage.local.get(['timeRemaining'], (result) => {
+      void startTrackedStudySegment(result.timeRemaining ?? 0);
+      scheduleNextTick();
+      syncBadge();
+      reclassifyAllTabs(); // When resuming, reclassify all tabs to ensure blocking state is correct
+      sendResponse({ ok: true });
+    });
     return true;
   }
   if (message.type === 'RESET_TIMER') {
-    chrome.alarms.clear(ALARM_NAME);
-    syncBadge();
-    sendResponse({ ok: true });
+    chrome.storage.local.get(['timeRemaining'], (result) => {
+      chrome.alarms.clear(ALARM_NAME);
+      void finalizeTrackedStudySegment(result.timeRemaining ?? 0);
+      syncBadge();
+      sendResponse({ ok: true });
+    });
+    return true;
+  }
+  if (message.type === 'END_TIMER') {
+    chrome.storage.local.get(['timeRemaining'], (result) => {
+      chrome.alarms.clear(ALARM_NAME);
+      void finalizeTrackedStudySegment(result.timeRemaining ?? 0);
+      syncBadge();
+      sendResponse({ ok: true });
+    });
     return true;
   }
   if (message.type === 'OPEN_POPUP') {
@@ -283,6 +314,7 @@ chrome.storage.local.get(['isRunning', 'timeRemaining'], (result) => {
   if (result.isRunning && (result.timeRemaining ?? 0) > 0) {
     scheduleNextTick();
   }
+  void flushPendingTrackedStudySeconds();
   syncBadge();
 });
 
