@@ -19,6 +19,14 @@ const ai = new GoogleGenAI({
   apiKey,
 });
 
+
+const classificationCache = new Map<string, { decision: number; ts: number }>();
+const TTL_MS = 5 * 60 * 1000; // (5 minutes) If a tab was classified within the last 5 minutes, reuse that decision instead of calling the API again
+
+function makeCacheKey(task: string, tab: any) {
+  return `${task}::${tab.domain}::${tab.title}`;
+}
+
 app.post("/classify", async (req, res) => {
   try {
     const { task, tab } = req.body;
@@ -27,29 +35,53 @@ app.post("/classify", async (req, res) => {
       return res.status(400).json({ error: "Missing task or tab" });
     }
 
+    const key = makeCacheKey(task, tab);
+    const cached = classificationCache.get(key);
+
+    if (cached && Date.now() - cached.ts < TTL_MS) {
+      console.log("CACHE HIT:", key);
+      return res.json({
+        decision: cached.decision,
+        raw: "cached"
+      });
+    }
+
     const prompt = `
-You are a strict focus-mode assistant. You decide whether a browser tab should be BLOCKED during a student's study session.
+    You are a strict focus-mode classifier for a Pomodoro study blocker.
 
-Respond with ONLY a single digit: 0 or 1. No explanation, no other text.
+    You must decide if a browser tab is directly required for completing the user's current study task.
 
-0 = allow (tab is DIRECTLY related to the study task)
-1 = block (tab is NOT directly related to the study task)
+    OUTPUT RULES:
+    - Respond with ONLY one character: 0 or 1
+    - 0 = ALLOW (directly required for task)
+    - 1 = BLOCK (everything else)
+    - No explanation, no punctuation, no extra text
 
-Be strict. Apply these rules:
-- Only allow tabs that are DIRECTLY and SPECIFICALLY relevant to the stated task.
-- Block social media, entertainment, news, video platforms (Netflix, Twitch, etc.), shopping, and general browsing, unless it is directly related to the stated task.
-- Block generic homepages, feeds, and discovery pages even if the site COULD have relevant content.
-- Block AI chatbots and general-purpose tools unless the page content is specifically about the task.
-- When in doubt, BLOCK. Err on the side of blocking.
+    DEFAULT BEHAVIOR:
+    - Default is BLOCK (1)
+    - Only return 0 if you are highly confident the tab is directly necessary for the task
+    - If uncertain, return 1
 
-User's study task: "${task}"
+    ALLOW ONLY if:
+    - The tab is essential to complete the task right now
+    - It contains direct study material (notes, docs, assignments, references)
 
-Tab info:
-URL: ${tab.url}
-Domain: ${tab.domain}
-Title: ${tab.title}
-Description: ${tab.description}
-`.trim();
+    BLOCK if:
+    - Social media, entertainment, news, shopping, videos
+    - GitHub repos not directly related to solving the task
+    - AI chat tools (unless explicitly part of the task)
+    - General browsing or discovery pages
+    - Anything unrelated or indirectly related
+
+    User task:
+    "${task}"
+
+    Tab:
+    URL: ${tab.url}
+    Domain: ${tab.domain}
+    Title: ${tab.title}
+    Description: ${tab.description}
+  `.trim();
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -57,7 +89,12 @@ Description: ${tab.description}
     });
 
     const raw = (response.text || "").trim();
-    const decision = raw.includes("1") ? 1 : 0;
+    const decision = raw.trim().startsWith("1") ? 1 : 0;
+
+    classificationCache.set(key, {
+      decision,
+      ts: Date.now()
+    });
 
     res.json({ decision, raw });
   } catch (error) {
