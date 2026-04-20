@@ -179,6 +179,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
 
     const newTime = Math.max(0, (result.timeRemaining || 0) - 1);
+
     if (newTime <= 0) {
       void finalizeTrackedStudySegment(0);
       chrome.storage.local.set(
