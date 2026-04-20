@@ -7,7 +7,7 @@
   }
   g[POMO_GUARD] = true;
 
-let studySubject = '';
+let task = '';
 let overlayEl: HTMLElement | null = null;
 /** Snapshot of media we paused when blocking; restored when overlay is removed. */
 let blockedMediaSnapshot: Array<{
@@ -185,12 +185,12 @@ function shouldShowWidgetFromStorage(result: {
   sessionStarted?: boolean;
   isRunning?: boolean;
   timeRemaining?: number;
-  studySubject?: string;
+  task?: string;
 }): boolean {
   if (result.sessionStarted === false) return false;
   if (result.sessionStarted === true) return true;
   if (result.isRunning === true) return true;
-  if ((result.timeRemaining ?? 0) > 0 && Boolean(result.studySubject)) return true;
+  if ((result.timeRemaining ?? 0) > 0 && Boolean(result.task)) return true;
   return false;
 }
 
@@ -244,10 +244,10 @@ function removeWidget() {
 
 function syncFromStorage() {
   chrome.storage.local.get(
-    ['timeRemaining', 'isRunning', 'studySubject', 'sessionStarted'],
+    ['timeRemaining', 'isRunning', 'task', 'sessionStarted'],
     (result) => {
       localTimeRemaining = result.timeRemaining ?? 0;
-      studySubject = result.studySubject ?? '';
+      task = result.task ?? '';
       localIsRunning = result.isRunning ?? false;
       localSessionStarted = result.sessionStarted ?? false;
       renderWidget();
@@ -262,11 +262,11 @@ function renderWidget() {
   const sideEl = document.getElementById('pomodoro-widget-side');
 
   if (timeEl) timeEl.textContent = formatTime(localTimeRemaining);
-  if (subjectEl) subjectEl.textContent = studySubject;
+  if (subjectEl) subjectEl.textContent = task;
 
   const canToggle =
     localTimeRemaining > 0 &&
-    (localSessionStarted || localIsRunning || Boolean(studySubject));
+    (localSessionStarted || localIsRunning || Boolean(task));
   if (toggleBtn && sideEl) {
     if (!canToggle) {
       sideEl.classList.add('widget-side--hidden');
@@ -329,7 +329,7 @@ function makeDraggable(widget: HTMLElement, handle: HTMLElement) {
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
   if (changes.timeRemaining != null) localTimeRemaining = changes.timeRemaining.newValue ?? 0;
-  if (changes.studySubject != null) studySubject = changes.studySubject.newValue ?? '';
+  if (changes.task != null) task = changes.task.newValue ?? '';
   if (changes.isRunning != null) localIsRunning = changes.isRunning.newValue ?? false;
   if (changes.sessionStarted != null) localSessionStarted = changes.sessionStarted.newValue ?? false;
 
@@ -337,16 +337,16 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     changes.sessionStarted != null ||
     changes.timeRemaining != null ||
     changes.isRunning != null ||
-    changes.studySubject != null;
+    changes.task != null;
 
   if (mayAffectWidget) {
     chrome.storage.local.get(
-      ['sessionStarted', 'isRunning', 'timeRemaining', 'studySubject'],
+      ['sessionStarted', 'isRunning', 'timeRemaining', 'task'],
       (r) => {
         localSessionStarted = r.sessionStarted ?? false;
         localTimeRemaining = r.timeRemaining ?? 0;
         localIsRunning = r.isRunning ?? false;
-        if (r.studySubject != null) studySubject = r.studySubject;
+        if (r.task != null) task = r.task;
 
         if (!shouldShowWidgetFromStorage(r)) {
           removeWidget();
@@ -481,12 +481,12 @@ function removeOverlay() {
   restoreMediaAfterUnblock();
 }
 
-function applySessionUpdate(studySubjectFromMsg: string) {
-  if (studySubjectFromMsg) studySubject = studySubjectFromMsg;
-  chrome.storage.local.get(['sessionStarted', 'timeRemaining', 'isRunning', 'studySubject'], (r) => {
+function applySessionUpdate(studyTaskFromMsg: string) {
+  if (studyTaskFromMsg) task = studyTaskFromMsg;
+  chrome.storage.local.get(['sessionStarted', 'timeRemaining', 'isRunning', 'task'], (r) => {
     localTimeRemaining = r.timeRemaining ?? 0;
     localIsRunning = r.isRunning ?? false;
-    if (r.studySubject) studySubject = r.studySubject;
+    if (r.task) task = r.task;
     localSessionStarted = r.sessionStarted ?? false;
     if (r.sessionStarted === undefined && shouldShowWidgetFromStorage(r)) {
       chrome.storage.local.set({ sessionStarted: true });
@@ -505,7 +505,7 @@ function applySessionUpdate(studySubjectFromMsg: string) {
 
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'STUDY_SESSION_UPDATE') {
-    applySessionUpdate(message.studySubject ?? '');
+    applySessionUpdate(message.task ?? '');
   }
 
   if (message.type === 'BLUR_DECISION') {
@@ -526,9 +526,9 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 chrome.storage.local.get(
-  ['isRunning', 'studySubject', 'timeRemaining', 'sessionStarted'],
+  ['isRunning', 'task', 'timeRemaining', 'sessionStarted'],
   (result) => {
-    studySubject = result.studySubject ?? '';
+    task = result.task ?? '';
     localSessionStarted = result.sessionStarted ?? false;
     localTimeRemaining = result.timeRemaining ?? 0;
     localIsRunning = result.isRunning ?? false;

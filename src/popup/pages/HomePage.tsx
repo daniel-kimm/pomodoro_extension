@@ -9,7 +9,7 @@ function sendTimerMessage(type: 'START_TIMER' | 'PAUSE_TIMER' | 'RESUME_TIMER' |
 export default function HomePage() {
   const [studyTimer, setStudyTimer] = useState<number>(25);
   const [studyTimerInput, setStudyTimerInput] = useState<string>('25');
-  const [studySubject, setStudySubject] = useState<string>('');
+  const [task, setTask] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(25 * 60);
   const [sessionStarted, setSessionStarted] = useState<boolean>(false);
@@ -19,7 +19,7 @@ export default function HomePage() {
       setStudyTimer(result.studyTimer);
       setStudyTimerInput(String(result.studyTimer));
     }
-    if (typeof result.studySubject === 'string') setStudySubject(result.studySubject);
+    if (typeof result.task === 'string') setTask(result.task);
     if (typeof result.isRunning === 'boolean') setIsRunning(result.isRunning);
     if (typeof result.timeRemaining === 'number') setTimeRemaining(result.timeRemaining);
     if (typeof result.sessionStarted === 'boolean') setSessionStarted(result.sessionStarted);
@@ -28,14 +28,14 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof chrome === 'undefined' || !chrome.storage) return;
     chrome.storage.local.get(
-      ['studyTimer', 'studySubject', 'isRunning', 'timeRemaining', 'sessionStarted'],
+      ['studyTimer', 'task', 'isRunning', 'timeRemaining', 'sessionStarted'],
       (result) => {
         applyStorage(result);
         const hasSession =
           result.sessionStarted === true ||
           (result.sessionStarted === undefined &&
             (result.isRunning === true ||
-              ((result.timeRemaining ?? 0) > 0 && Boolean(result.studySubject))));
+              ((result.timeRemaining ?? 0) > 0 && Boolean(result.task))));
         if (hasSession && result.sessionStarted === undefined) {
           setSessionStarted(true);
           chrome.storage.local.set({ sessionStarted: true });
@@ -55,7 +55,7 @@ export default function HomePage() {
         setStudyTimer(changes.studyTimer.newValue);
         setStudyTimerInput(String(changes.studyTimer.newValue));
       }
-      if (changes.studySubject) setStudySubject((changes.studySubject.newValue as string) ?? '');
+      if (changes.task) setTask((changes.task.newValue as string) ?? '');
       if (changes.isRunning) setIsRunning(changes.isRunning.newValue ?? false);
       if (changes.timeRemaining) setTimeRemaining(changes.timeRemaining.newValue ?? 0);
       if (changes.sessionStarted) setSessionStarted(changes.sessionStarted.newValue ?? false);
@@ -74,12 +74,12 @@ export default function HomePage() {
   };
 
   const handleStart = () => {
-    if (!studySubject.trim()) {
-      alert('Please enter a study subject');
+    if (!task.trim()) {
+      alert('Please enter a focus task');
       return;
     }
     const initialTime = studyTimer * 60;
-    const subject = studySubject.trim();
+    const trimmedTask = task.trim();
     setSessionStarted(true);
     setIsRunning(true);
     setTimeRemaining(initialTime);
@@ -89,8 +89,8 @@ export default function HomePage() {
         isRunning: true,
         timeRemaining: initialTime,
         studyTimer,
-        studySubject: subject,
-        currentTask: `Studying ${subject}`,
+        task: trimmedTask,
+        currentTask: trimmedTask,
       },
       () => sendTimerMessage('START_TIMER')
     );
@@ -137,13 +137,13 @@ export default function HomePage() {
       {showSetup ? (
         <div className="setup-section">
           <div className="form-group">
-            <label htmlFor="subject">Study Subject</label>
+            <label htmlFor="task">Focus Task</label>
             <input
               id="subject"
               type="text"
-              placeholder="e.g., Math, Computer Science..."
-              value={studySubject}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setStudySubject(e.target.value)}
+              placeholder="e.g., Work on resume, Study math, Build extension..."
+              value={task}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTask(e.target.value)}
               className="input-field"
             />
           </div>
@@ -174,7 +174,7 @@ export default function HomePage() {
           </div>
 
           <button type="button" onClick={handleStart} className="btn btn-primary">
-            Start Study Session
+            Start Focus Session
           </button>
         </div>
       ) : (
@@ -205,7 +205,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="subject-display">
-              <strong>Subject</strong> — {studySubject || '—'}
+              <strong>Task</strong> — {task || '—'}
             </div>
           </div>
 

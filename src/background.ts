@@ -47,12 +47,12 @@ function storageLooksLikeActiveStudySession(r: {
   sessionStarted?: boolean;
   isRunning?: boolean;
   timeRemaining?: number;
-  studySubject?: string;
+  task?: string;
 }): boolean {
   if (r.sessionStarted === false) return false;
   if (r.sessionStarted === true) return true;
   if (r.isRunning === true) return true;
-  if ((r.timeRemaining ?? 0) > 0 && Boolean(r.studySubject)) return true;
+  if ((r.timeRemaining ?? 0) > 0 && Boolean(r.task)) return true;
   return false;
 }
 
@@ -60,13 +60,13 @@ function pushStudySessionToTab(
   tabId: number,
   tabUrl: string | undefined,
   isRunning: boolean,
-  studySubject: string
+  task: string
 ): void {
   if (!isInjectablePageUrl(tabUrl)) return;
   const payload = {
     type: 'STUDY_SESSION_UPDATE' as const,
     isRunning,
-    studySubject,
+    task,
   };
   chrome.tabs.sendMessage(tabId, payload).catch(() => {
     const files = getManifestContentScriptFiles();
@@ -82,15 +82,15 @@ function pushStudySessionToTab(
 
 function broadcastStudySessionToAllTabs(): void {
   chrome.storage.local.get(
-    ['isRunning', 'studySubject', 'sessionStarted', 'timeRemaining'],
+    ['isRunning', 'task', 'sessionStarted', 'timeRemaining'],
     (r) => {
       const sessionRunning = r.isRunning ?? false;
-      const studySubject = r.studySubject ?? '';
+      const task = r.task ?? '';
       chrome.tabs.query({}, (tabs) => {
         for (const tab of tabs) {
           const id = tab.id;
           if (id == null) continue;
-          pushStudySessionToTab(id, tab.url, sessionRunning, studySubject);
+          pushStudySessionToTab(id, tab.url, sessionRunning, task);
           if (!sessionRunning && isInjectablePageUrl(tab.url)) {
             chrome.tabs
               .sendMessage(id, { type: 'BLUR_DECISION', shouldBlur: false })
@@ -293,12 +293,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'POMO_RESYNC_TAB') {
     const tabId = sender.tab?.id;
     if (tabId != null) {
-      chrome.storage.local.get(['isRunning', 'studySubject'], (r) => {
+      chrome.storage.local.get(['isRunning', 'task'], (r) => {
         chrome.tabs
           .sendMessage(tabId, {
             type: 'STUDY_SESSION_UPDATE',
             isRunning: r.isRunning ?? false,
-            studySubject: r.studySubject ?? '',
+            task: r.task ?? '',
           })
           .catch(() => {});
       });
@@ -324,7 +324,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     syncBadge();
   }
 
-  if (changes.isRunning || changes.studySubject || changes.sessionStarted) {
+  if (changes.isRunning || changes.task || changes.sessionStarted) {
     broadcastStudySessionToAllTabs();
   }
 });
@@ -332,11 +332,11 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status !== 'complete' || tab.url == null) return;
   chrome.storage.local.get(
-    ['sessionStarted', 'isRunning', 'timeRemaining', 'studySubject'],
+    ['sessionStarted', 'isRunning', 'timeRemaining', 'task'],
     (r) => {
       if (!storageLooksLikeActiveStudySession(r)) return;
       if (r.isRunning) pushMetadataRequest(tabId, tab.url);
-      pushStudySessionToTab(tabId, tab.url, r.isRunning ?? false, r.studySubject ?? '');
+      pushStudySessionToTab(tabId, tab.url, r.isRunning ?? false, r.task ?? '');
     }
   );
 });

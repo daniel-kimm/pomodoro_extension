@@ -51,6 +51,14 @@ app.post("/classify", async (req, res) => {
 
     You must decide if a browser tab is directly required for completing the user's current study task.
 
+    The user's task may be anything such as:
+    - studying a subject
+    - working on a project
+    - job searching
+    - writing code
+    - preparing an application
+    - researching a topic
+
     OUTPUT RULES:
     - Respond with ONLY one character: 0 or 1
     - 0 = ALLOW (directly required for task)
@@ -73,8 +81,7 @@ app.post("/classify", async (req, res) => {
     - General browsing or discovery pages
     - Anything unrelated or indirectly related
 
-    User task:
-    "${task}"
+    User current focus task: "${task}"
 
     Tab:
     URL: ${tab.url}
