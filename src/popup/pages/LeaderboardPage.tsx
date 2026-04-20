@@ -71,7 +71,6 @@ export default function LeaderboardPage() {
     chrome.storage.onChanged.addListener(listener);
     return () => chrome.storage.onChanged.removeListener(listener);
   }, [loadLeaderboard, refreshProfile]);
-
   if (loading) {
     return (
       <div className="leaderboard-page">

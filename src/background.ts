@@ -4,7 +4,6 @@ import {
   flushPendingTrackedStudySeconds,
   startTrackedStudySegment,
 } from './popup/studyTimeTracker';
-
 // Background service worker (Manifest V3) — owns the Pomodoro countdown so it keeps running
 // when the toolbar popup is closed.
 //
