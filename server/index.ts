@@ -110,6 +110,12 @@ app.post("/classify", async (req, res) => {
   }
 });
 
+app.post("/clear-cache", (req, res) => {
+  classificationCache.clear();
+  console.log("Cache cleared");
+  res.json({ success: true });
+});
+
 const port = Number(process.env.PORT || 3001);
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);

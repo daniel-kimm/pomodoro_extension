@@ -13,6 +13,7 @@ export default function HomePage() {
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(25 * 60);
   const [sessionStarted, setSessionStarted] = useState<boolean>(false);
+  const [isEditingTask, setIsEditingTask] = useState<boolean>(false);
 
   const applyStorage = useCallback((result: { [key: string]: unknown }) => {
     if (result.studyTimer != null && typeof result.studyTimer === 'number') {
@@ -90,10 +91,31 @@ export default function HomePage() {
         timeRemaining: initialTime,
         studyTimer,
         task: trimmedTask,
-        currentTask: trimmedTask,
       },
       () => sendTimerMessage('START_TIMER')
     );
+  };
+
+  const handleSaveTask = () => {
+    const newTask = task.trim();
+    if (!newTask) return;
+  
+    persist({ task: newTask }, async () => {
+      await fetch('http://localhost:3001/clear-cache', {
+        method: 'POST',
+      });
+
+      chrome.runtime.sendMessage({
+        type: 'STUDY_SESSION_UPDATE',
+        task: newTask,
+      });
+
+      chrome.runtime.sendMessage({
+        type: 'TASK_UPDATED'   
+      });
+    });
+  
+    setIsEditingTask(false);
   };
 
   const handlePause = () => {
@@ -205,7 +227,46 @@ export default function HomePage() {
               </div>
             </div>
             <div className="subject-display">
-              <strong>Task</strong> — {task || '—'}
+              <strong>Task</strong> —{' '}
+              {!isEditingTask ? (
+                <>
+                  {task || '—'}
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingTask(true)}
+                    className="btn btn-ghost"
+                    style={{ marginTop: '10px', marginLeft: '8px', fontSize: '12px' }}
+                  >
+                    Edit Task
+                  </button>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    value={task}
+                    onChange={(e) => setTask(e.target.value)}
+                    className="input-field"
+                    style={{ width: '160px' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveTask}
+                    className="btn btn-primary"
+                    style={{ marginTop: '10px', marginLeft: '6px', fontSize: '12px' }}
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingTask(false)}
+                    className="btn btn-ghost"
+                    style={{ marginTop: '8px', marginLeft: '4px', fontSize: '12px' }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

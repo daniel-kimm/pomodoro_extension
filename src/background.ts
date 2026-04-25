@@ -260,6 +260,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+  if (message.type === 'TASK_UPDATED') {
+    reclassifyAllTabs();
+    sendResponse({ ok: true });
+    return true;
+  }
   if (message.type === 'GOOGLE_AUTH_FLOW') {
     chrome.identity.launchWebAuthFlow(
       { url: message.url, interactive: true },
@@ -327,6 +332,10 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (changes.isRunning || changes.task || changes.sessionStarted) {
     broadcastStudySessionToAllTabs();
   }
+
+  if (changes.task) {
+    reclassifyAllTabs();
+  }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -352,13 +361,13 @@ async function classifyTab(
   tabId?: number
 ) {
   try {
-    const { currentTask, isRunning } = await chrome.storage.local.get(['currentTask', 'isRunning']);
+    const { task, isRunning } = await chrome.storage.local.get(['task', 'isRunning']);
     if (!isRunning) return;
 
-    const task = currentTask || 'Study';
+    const currentTask = task || 'Study';
 
     console.log('Sending to backend:', {
-      task,
+      currentTask,
       metadata,
     });
 
@@ -368,7 +377,7 @@ async function classifyTab(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        task,
+        task: currentTask,
         tab: metadata,
       }),
     });
