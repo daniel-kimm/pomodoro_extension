@@ -260,7 +260,7 @@ export default function HomePage() {
 
     setGroupLoading(true);
     const initialTime = studyTimer * 60;
-    const trimmedTask = task.trim();
+    const trimmedTask = task.trim().toUpperCase();
 
     const { data: sessionData, error: sessionError } = await supabase
       .from('study_sessions')
@@ -300,7 +300,8 @@ export default function HomePage() {
       return;
     }
     const initialTime = studyTimer * 60;
-    const trimmedTask = task.trim();
+    const trimmedTask = task.trim().toUpperCase();
+    setTask(trimmedTask);
     setSessionStarted(true);
     setIsRunning(true);
     setTimeRemaining(initialTime);
@@ -317,7 +318,7 @@ export default function HomePage() {
   };
 
   const handleSaveTask = () => {
-    const newTask = task.trim();
+    const newTask = task.trim().toUpperCase();
     if (!newTask) return;
   
     persist({ task: newTask }, async () => {
@@ -364,6 +365,27 @@ export default function HomePage() {
     );
   };
 
+  const clampStudyTimer = (minutes: number): number => {
+    return Math.min(120, Math.max(1, minutes));
+  };
+
+  const commitStudyTimerInput = () => {
+    const n = parseInt(studyTimerInput, 10);
+    const clamped = Number.isNaN(n) ? 25 : clampStudyTimer(n);
+    setStudyTimer(clamped);
+    setStudyTimerInput(String(clamped));
+    persist({ studyTimer: clamped });
+  };
+
+  const stepStudyTimer = (delta: number) => {
+    const parsed = parseInt(studyTimerInput, 10);
+    const current = Number.isNaN(parsed) ? studyTimer : parsed;
+    const next = clampStudyTimer(current + delta);
+    setStudyTimer(next);
+    setStudyTimerInput(String(next));
+    persist({ studyTimer: next });
+  };
+
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -398,27 +420,45 @@ export default function HomePage() {
 
           <div className="form-group">
             <label htmlFor="timer">Study Timer (minutes)</label>
-            <input
-              id="timer"
-              type="number"
-              min="1"
-              max="120"
-              value={studyTimerInput}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                const v = e.target.value;
-                setStudyTimerInput(v);
-                const n = parseInt(v, 10);
-                if (!Number.isNaN(n)) setStudyTimer(n);
-              }}
-              onBlur={() => {
-                const n = parseInt(studyTimerInput, 10);
-                const clamped = Number.isNaN(n) ? 25 : Math.min(120, Math.max(1, n));
-                setStudyTimer(clamped);
-                setStudyTimerInput(String(clamped));
-                persist({ studyTimer: clamped });
-              }}
-              className="input-field"
-            />
+            <div className="number-stepper">
+              <input
+                id="timer"
+                type="number"
+                min="1"
+                max="120"
+                value={studyTimerInput}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  const v = e.target.value;
+                  setStudyTimerInput(v);
+                  const n = parseInt(v, 10);
+                  if (!Number.isNaN(n)) setStudyTimer(n);
+                }}
+                onBlur={commitStudyTimerInput}
+                className="input-field input-field--number"
+              />
+              <div className="number-stepper__controls">
+                <button
+                  type="button"
+                  className="number-stepper__button"
+                  onClick={() => stepStudyTimer(1)}
+                  aria-label="Increase study timer"
+                >
+                  <svg viewBox="0 0 12 12" focusable="false">
+                    <path d="M3 7.5 6 4.5l3 3" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  className="number-stepper__button"
+                  onClick={() => stepStudyTimer(-1)}
+                  aria-label="Decrease study timer"
+                >
+                  <svg viewBox="0 0 12 12" focusable="false">
+                    <path d="M3 4.5 6 7.5l3-3" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
 
           <button type="button" onClick={handleStart} className="btn btn-primary">
@@ -461,8 +501,8 @@ export default function HomePage() {
                 <svg className="timer-ring__svg" viewBox="0 0 170 170" aria-hidden="true">
                   <defs>
                     <linearGradient id="timer-ring-gradient" x1="20" y1="20" x2="150" y2="150">
-                      <stop offset="0%" stopColor="#22d3ee" />
-                      <stop offset="100%" stopColor="#818cf8" />
+                      <stop offset="0%" stopColor="#ffffff" />
+                      <stop offset="100%" stopColor="#a1a1aa" />
                     </linearGradient>
                   </defs>
                   <circle
@@ -489,7 +529,7 @@ export default function HomePage() {
               <strong>Task</strong> —{' '}
               {!isEditingTask ? (
                 <>
-                  {task || '—'}
+                  {task ? task.toUpperCase() : '—'}
                   <button
                     type="button"
                     onClick={() => setIsEditingTask(true)}

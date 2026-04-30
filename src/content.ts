@@ -155,7 +155,7 @@ function injectStyles() {
       align-items: center;
       justify-content: center;
       flex-direction: column;
-      font-family: system-ui, -apple-system, sans-serif;
+      font-family: Arial;
       color: white;
       pointer-events: auto;
     }
@@ -191,23 +191,25 @@ function injectStyles() {
       display: flex;
       flex-direction: row;
       align-items: stretch;
-      background: #1a1a2e;
-      color: #fff;
-      font-family: system-ui, -apple-system, sans-serif;
+      background: linear-gradient(165deg, #18181b 0%, #0f0f10 55%, #050505 100%);
+      color: #f5f5f5;
+      font-family: Arial;
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 12px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.45);
       overflow: hidden;
       user-select: none;
-      transition: box-shadow 0.2s;
+      transition: border-color 0.15s, box-shadow 0.2s;
     }
     #pomodoro-timer-widget:hover {
-      box-shadow: 0 6px 32px rgba(0,0,0,0.45);
+      border-color: rgba(255,255,255,0.18);
+      box-shadow: 0 10px 36px rgba(0,0,0,0.55);
     }
     #pomodoro-timer-widget.dragging {
-      box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+      box-shadow: 0 12px 44px rgba(0,0,0,0.6);
     }
     #pomodoro-timer-widget .widget-main {
-      padding: 10px 12px 10px 14px;
+      padding: 12px 14px;
       cursor: grab;
       min-width: 0;
     }
@@ -215,20 +217,63 @@ function injectStyles() {
       cursor: grabbing;
     }
     #pomodoro-timer-widget .widget-time {
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 700;
       font-variant-numeric: tabular-nums;
-      letter-spacing: 1px;
+      letter-spacing: 0;
       line-height: 1.1;
     }
+    #pomodoro-timer-widget .widget-topline {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #pomodoro-timer-widget .widget-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.08);
+      color: #b6b6b8;
+    }
+    #pomodoro-timer-widget .widget-status__dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    #pomodoro-timer-widget.widget-running .widget-status {
+      color: #22c55e;
+      background: rgba(34,197,94,0.12);
+      border-color: rgba(34,197,94,0.3);
+    }
+    #pomodoro-timer-widget.widget-paused .widget-status {
+      color: #facc15;
+      background: rgba(250,204,21,0.12);
+      border-color: rgba(250,204,21,0.3);
+    }
+    #pomodoro-timer-widget.widget-done .widget-status {
+      color: #b6b6b8;
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.14);
+    }
     #pomodoro-timer-widget .widget-subject {
-      font-size: 12px;
-      opacity: 0.6;
-      margin-top: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #f5f5f5;
+      margin-top: 7px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 160px;
+      text-transform: uppercase;
     }
     #pomodoro-timer-widget .widget-side {
       display: flex;
@@ -242,7 +287,7 @@ function injectStyles() {
     #pomodoro-timer-widget .widget-divider {
       width: 1px;
       align-self: stretch;
-      background: rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.1);
       flex-shrink: 0;
     }
     #pomodoro-timer-widget .widget-actions {
@@ -263,21 +308,24 @@ function injectStyles() {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(255,255,255,0.1);
-      color: #fff;
-      transition: background 0.15s, transform 0.1s;
+      background: #202024;
+      border: 1px solid rgba(255,255,255,0.1);
+      color: #f5f5f5;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
     }
     #pomodoro-timer-widget .widget-action-btn:hover {
-      background: rgba(255,255,255,0.2);
+      background: #2a2a2e;
+      border-color: rgba(255,255,255,0.18);
     }
     #pomodoro-timer-widget .widget-action-btn:active {
       transform: scale(0.95);
     }
     #pomodoro-timer-widget .widget-action-btn--play {
-      background: rgba(56, 189, 248, 0.25);
+      background: linear-gradient(135deg, #ffffff 0%, #e5e5e5 55%, #b8b8b8 100%);
+      color: #0a0a0b;
     }
     #pomodoro-timer-widget .widget-action-btn--play:hover {
-      background: rgba(56, 189, 248, 0.4);
+      background: linear-gradient(135deg, #ffffff 0%, #eeeeee 55%, #c7c7c7 100%);
     }
     #pomodoro-timer-widget .widget-icon-pause {
       display: flex;
@@ -293,9 +341,12 @@ function injectStyles() {
       border-radius: 1px;
     }
     #pomodoro-timer-widget .widget-toggle-play {
-      font-size: 14px;
-      line-height: 1;
+      width: 0;
+      height: 0;
       margin-left: 2px;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 9px solid currentColor;
     }
     #pomodoro-timer-widget .widget-action-btn:disabled {
       opacity: 0.35;
@@ -334,7 +385,13 @@ function createWidget() {
   widgetEl.id = 'pomodoro-timer-widget';
   widgetEl.innerHTML = `
     <div class="widget-main" id="pomodoro-widget-drag-area">
-      <div class="widget-time" id="pomodoro-widget-time">--:--</div>
+      <div class="widget-topline">
+        <div class="widget-time" id="pomodoro-widget-time">--:--</div>
+        <div class="widget-status" id="pomodoro-widget-status">
+          <span class="widget-status__dot" aria-hidden="true"></span>
+          <span id="pomodoro-widget-status-text">Paused</span>
+        </div>
+      </div>
       <div class="widget-subject" id="pomodoro-widget-subject"></div>
     </div>
     <div class="widget-side" id="pomodoro-widget-side">
@@ -396,15 +453,24 @@ function syncFromStorage() {
 function renderWidget() {
   const timeEl = document.getElementById('pomodoro-widget-time');
   const subjectEl = document.getElementById('pomodoro-widget-subject');
+  const statusTextEl = document.getElementById('pomodoro-widget-status-text');
   const toggleBtn = document.getElementById('pomodoro-widget-toggle') as HTMLButtonElement | null;
   const sideEl = document.getElementById('pomodoro-widget-side');
-
-  if (timeEl) timeEl.textContent = formatTime(localTimeRemaining);
-  if (subjectEl) subjectEl.textContent = task;
-
   const canToggle =
     localTimeRemaining > 0 &&
     (localSessionStarted || localIsRunning || Boolean(task));
+
+  if (timeEl) timeEl.textContent = formatTime(localTimeRemaining);
+  if (subjectEl) subjectEl.textContent = task.toUpperCase();
+  if (statusTextEl) {
+    statusTextEl.textContent = localIsRunning ? 'Focusing' : canToggle ? 'Paused' : 'Session ended';
+  }
+  if (widgetEl) {
+    widgetEl.classList.toggle('widget-running', localIsRunning);
+    widgetEl.classList.toggle('widget-paused', !localIsRunning && canToggle);
+    widgetEl.classList.toggle('widget-done', !canToggle);
+  }
+
   if (toggleBtn && sideEl) {
     if (!canToggle) {
       sideEl.classList.add('widget-side--hidden');
@@ -420,7 +486,7 @@ function renderWidget() {
         toggleBtn.classList.add('widget-action-btn--play');
         toggleBtn.title = 'Continue';
         toggleBtn.setAttribute('aria-label', 'Continue timer');
-        toggleBtn.innerHTML = '<span class="widget-toggle-play" aria-hidden="true">▶</span>';
+        toggleBtn.innerHTML = '<span class="widget-toggle-play" aria-hidden="true"></span>';
       }
     }
   }

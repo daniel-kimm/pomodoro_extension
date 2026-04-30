@@ -77,10 +77,10 @@ function App() {
       <header className="popup-header">
         <div className="popup-header__brand">
           <div className="popup-header__text">
-            <h1>Pomodoro Study</h1>
+            <h1>POMODORO STUDY</h1>
             <p>
               {activeTab === 'timer'
-                ? 'Focus sessions that keep running in the background'
+                ? 'Focus sessions that run in the background'
                 : activeTab === 'friends'
                   ? 'Manage your study friends'
                   : 'Friend leaderboard'}
