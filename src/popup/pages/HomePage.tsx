@@ -17,6 +17,9 @@ function sendTimerMessage(type: 'START_TIMER' | 'PAUSE_TIMER' | 'RESUME_TIMER' |
   }
 }
 
+const TIMER_RING_RADIUS = 80;
+const TIMER_RING_CIRCUMFERENCE = 2 * Math.PI * TIMER_RING_RADIUS;
+
 export default function HomePage() {
   const [studyTimer, setStudyTimer] = useState<number>(25);
   const { user, profile } = useAuth();
@@ -370,6 +373,12 @@ export default function HomePage() {
   const showSetup = !sessionStarted;
   const canResume = sessionStarted && !isRunning && timeRemaining > 0;
   const sessionDone = sessionStarted && !isRunning && timeRemaining <= 0;
+  const totalSessionSeconds = Math.max(1, studyTimer * 60);
+  const timerProgress = Math.min(1, Math.max(0, timeRemaining / totalSessionSeconds));
+  const timerProgressStyle = {
+    strokeDasharray: TIMER_RING_CIRCUMFERENCE,
+    strokeDashoffset: TIMER_RING_CIRCUMFERENCE * (1 - timerProgress),
+  };
 
   return (
     <>
@@ -449,6 +458,27 @@ export default function HomePage() {
           <div className="timer-display">
             <div className="timer-ring-wrap">
               <div className="timer-ring">
+                <svg className="timer-ring__svg" viewBox="0 0 170 170" aria-hidden="true">
+                  <defs>
+                    <linearGradient id="timer-ring-gradient" x1="20" y1="20" x2="150" y2="150">
+                      <stop offset="0%" stopColor="#22d3ee" />
+                      <stop offset="100%" stopColor="#818cf8" />
+                    </linearGradient>
+                  </defs>
+                  <circle
+                    className="timer-ring__track"
+                    cx="85"
+                    cy="85"
+                    r={TIMER_RING_RADIUS}
+                  />
+                  <circle
+                    className="timer-ring__progress"
+                    cx="85"
+                    cy="85"
+                    r={TIMER_RING_RADIUS}
+                    style={timerProgressStyle}
+                  />
+                </svg>
                 <div className="timer-ring__inner">
                   <span className="timer-text">{formatTime(timeRemaining)}</span>
                   <span className="timer-label">Remaining</span>
