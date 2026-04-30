@@ -320,7 +320,7 @@ export default function HomePage() {
   const handleSaveTask = () => {
     const newTask = task.trim().toUpperCase();
     if (!newTask) return;
-  
+
     persist({ task: newTask }, async () => {
       await fetch('http://localhost:3001/clear-cache', {
         method: 'POST',
@@ -332,10 +332,10 @@ export default function HomePage() {
       });
 
       chrome.runtime.sendMessage({
-        type: 'TASK_UPDATED'   
+        type: 'TASK_UPDATED'
       });
     });
-  
+
     setIsEditingTask(false);
   };
 
@@ -469,11 +469,10 @@ export default function HomePage() {
             <button
               type="button"
               onClick={createGroupSession}
-              className="btn btn-secondary"
+              className="btn btn-secondary setup-group-btn"
               disabled={groupLoading}
-              style={{ marginTop: '0.75rem' }}
             >
-              {groupLoading ? 'Starting group session…' : `Start group session with ${friendIds.length} friend${friendIds.length === 1 ? '' : 's'}`}
+              {groupLoading ? 'Starting Group Session...' : 'Start Group Session'}
             </button>
           )}
         </div>
@@ -533,8 +532,7 @@ export default function HomePage() {
                   <button
                     type="button"
                     onClick={() => setIsEditingTask(true)}
-                    className="btn btn-ghost"
-                    style={{ marginTop: '10px', marginLeft: '8px', fontSize: '12px' }}
+                    className="btn btn-ghost task-inline-btn"
                   >
                     Edit Task
                   </button>
