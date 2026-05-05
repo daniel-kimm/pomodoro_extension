@@ -117,7 +117,7 @@ export default function HomePage() {
           timeRemaining: remaining,
           studyTimer: durationMinutes,
           task: session.task,
-          currentTask: session.task,
+          // currentTask: session.task,
         },
         () => sendTimerMessage('START_TIMER')
       );
@@ -275,8 +275,9 @@ export default function HomePage() {
       .single();
 
     if (sessionError || !sessionData) {
+      console.error('Create session error:', sessionError);
       setGroupLoading(false);
-      alert('Unable to create group session. Please try again.');
+      alert(sessionError?.message || 'Unable to create group session.');
       return;
     }
 
