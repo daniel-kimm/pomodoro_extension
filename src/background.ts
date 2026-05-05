@@ -1,3 +1,7 @@
+import {
+  FULLSCREEN_LOCK_STORAGE_KEYS,
+  readFullscreenLockEnabled,
+} from './lib/fullscreenLockPref';
 import { startStreakWatcher } from './popup/streakWatcher';
 import {
   finalizeTrackedStudySegment,
@@ -54,6 +58,22 @@ function storageLooksLikeActiveStudySession(r: {
   if (r.isRunning === true) return true;
   if ((r.timeRemaining ?? 0) > 0 && Boolean(r.task)) return true;
   return false;
+}
+
+/** Push latest fullscreen-lock pref to every tab (authoritative; avoids timer broadcast races). */
+function broadcastFullscreenLockToAllTabs(): void {
+  chrome.storage.local.get([...FULLSCREEN_LOCK_STORAGE_KEYS], (pref) => {
+    const lockEnabled = readFullscreenLockEnabled(pref);
+    chrome.tabs.query({}, (tabs) => {
+      for (const tab of tabs) {
+        const id = tab.id;
+        if (id == null) continue;
+        chrome.tabs
+          .sendMessage(id, { type: 'SET_FULLSCREEN_LOCK', enabled: lockEnabled })
+          .catch(() => {});
+      }
+    });
+  });
 }
 
 function pushStudySessionToTab(
@@ -161,6 +181,7 @@ chrome.runtime.onInstalled.addListener(() => {
   console.log('Pomodoro Study Extension installed.');
   syncBadge();
   scheduleNextTick();
+  broadcastFullscreenLockToAllTabs();
 });
 
 if (chrome.runtime.onStartup) {
@@ -298,16 +319,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'POMO_RESYNC_TAB') {
     const tabId = sender.tab?.id;
     if (tabId != null) {
-      chrome.storage.local.get(['isRunning', 'task'], (r) => {
-        chrome.tabs
-          .sendMessage(tabId, {
-            type: 'STUDY_SESSION_UPDATE',
-            isRunning: r.isRunning ?? false,
-            task: r.task ?? '',
-          })
-          .catch(() => {});
-      });
+      chrome.storage.local.get(
+        ['isRunning', 'task', ...FULLSCREEN_LOCK_STORAGE_KEYS],
+        (r) => {
+          const lockEnabled = readFullscreenLockEnabled(r);
+          chrome.tabs
+            .sendMessage(tabId, {
+              type: 'STUDY_SESSION_UPDATE',
+              isRunning: r.isRunning ?? false,
+              task: r.task ?? '',
+            })
+            .catch(() => {});
+          chrome.tabs
+            .sendMessage(tabId, { type: 'SET_FULLSCREEN_LOCK', enabled: lockEnabled })
+            .catch(() => {});
+        }
+      );
     }
+    sendResponse({ ok: true });
+    return true;
+  }
+  if (message.type === 'FULLSCREEN_PREF_UPDATED') {
+    broadcastFullscreenLockToAllTabs();
     sendResponse({ ok: true });
     return true;
   }
@@ -324,6 +357,13 @@ chrome.storage.local.get(['isRunning', 'timeRemaining'], (result) => {
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName !== 'local') return;
+
+  if (
+    changes.fullscreenLockDisabled !== undefined ||
+    changes.fullscreenLockEnabled !== undefined
+  ) {
+    broadcastFullscreenLockToAllTabs();
+  }
 
   if (changes.timeRemaining || changes.isRunning || changes.sessionStarted) {
     syncBadge();

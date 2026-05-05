@@ -5,8 +5,9 @@ import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import FriendsPage from './pages/FriendsPage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import SettingsPage from './pages/SettingsPage';
 
-type Tab = 'timer' | 'friends' | 'leaderboard';
+type Tab = 'timer' | 'friends' | 'leaderboard' | 'settings';
 
 function TimerIcon() {
   return (
@@ -37,6 +38,15 @@ function TrophyIcon() {
       <path d="M16 6h3a3 3 0 0 1-3 5" />
       <path d="M12 14v4" />
       <path d="M9 20h6" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
     </svg>
   );
 }
@@ -83,7 +93,9 @@ function App() {
                 ? 'Focus sessions that run in the background'
                 : activeTab === 'friends'
                   ? 'Manage your study friends'
-                  : 'Friend leaderboard'}
+                  : activeTab === 'leaderboard'
+                    ? 'Friend leaderboard'
+                    : 'Preferences'}
             </p>
           </div>
         </div>
@@ -101,6 +113,7 @@ function App() {
         {activeTab === 'timer' && <HomePage />}
         {activeTab === 'friends' && <FriendsPage />}
         {activeTab === 'leaderboard' && <LeaderboardPage />}
+        {activeTab === 'settings' && <SettingsPage />}
       </main>
 
       <nav className="bottom-nav">
@@ -133,6 +146,16 @@ function App() {
             <TrophyIcon />
           </span>
           <span className="bottom-nav__label">Board</span>
+        </button>
+        <button
+          type="button"
+          className={'bottom-nav__item' + (activeTab === 'settings' ? ' bottom-nav__item--active' : '')}
+          onClick={() => setActiveTab('settings')}
+        >
+          <span className="bottom-nav__icon">
+            <SettingsIcon />
+          </span>
+          <span className="bottom-nav__label">Settings</span>
         </button>
       </nav>
     </div>

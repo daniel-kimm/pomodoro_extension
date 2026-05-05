@@ -1,3 +1,8 @@
+import {
+  FULLSCREEN_LOCK_STORAGE_KEYS,
+  readFullscreenLockEnabled,
+} from './lib/fullscreenLockPref';
+
 (function () {
   const POMO_GUARD = '__pomoStudyExtension_cs_v1';
   const g = globalThis as unknown as Record<string, boolean>;
@@ -22,11 +27,12 @@ let styleEl: HTMLStyleElement | null = null;
 let localTimeRemaining = 0;
 let localIsRunning = false;
 let localSessionStarted = false;
+/** Popup Settings → fullscreen lock (unset defaults to on until storage loads). */
+let localFullscreenLockEnabled = true;
 
-/** While the timer is running, try to keep this (focused) tab in fullscreen; re-enter on exit. */
+/** While the timer is running, listen for clicks/keypresses to enter fullscreen (no automatic entry). */
 let fullscreenReapplyHandlersBound = false;
 let fullscreenPromptBtn: HTMLButtonElement | null = null;
-let fullscreenAutoRetryIntervalId: ReturnType<typeof setInterval> | null = null;
 
 function isExtensionUiEventTarget(t: EventTarget | null): boolean {
   if (!(t instanceof Element)) return false;
@@ -48,6 +54,7 @@ function getFullscreenElement(): Element | null {
 }
 
 function shouldEnforceTimerFullscreen(): boolean {
+  if (!localFullscreenLockEnabled) return false;
   if (!localIsRunning) return false;
   if (localTimeRemaining <= 0) return false;
   if (localSessionStarted === false) return false;
@@ -55,7 +62,17 @@ function shouldEnforceTimerFullscreen(): boolean {
 }
 
 function refreshFullscreenPrompt(): void {
+  const hint = overlayEl?.querySelector('#pomodoro-overlay-hint');
+  if (hint) {
+    hint.textContent = localFullscreenLockEnabled
+      ? 'Stay focused — get back to studying! Click anywhere to continue in fullscreen.'
+      : 'Stay focused — get back to studying!';
+  }
   if (!overlayEl || !fullscreenPromptBtn) return;
+  if (!localFullscreenLockEnabled) {
+    fullscreenPromptBtn.style.display = 'none';
+    return;
+  }
   const isLocked = getFullscreenElement() === document.documentElement;
   fullscreenPromptBtn.style.display = isLocked ? 'none' : 'inline-flex';
 }
@@ -79,22 +96,15 @@ function releaseStudyFullscreenIfOurs(): void {
   if (exit) void exit().catch(() => {});
 }
 
-function onFullscreenChangeReenter(): void {
+function onFullscreenChangeRefreshUi(): void {
   refreshFullscreenPrompt();
   if (!shouldEnforceTimerFullscreen()) {
     tearDownFullscreenReapply();
-    return;
-  }
-  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return;
-  if (getFullscreenElement() == null) {
-    requestAnimationFrame(() => requestStudyFullscreen());
   }
 }
 
 function onFocusOrVisibilityForFullscreen(): void {
-  if (shouldEnforceTimerFullscreen() && document.visibilityState === 'visible') {
-    requestStudyFullscreen();
-  } else if (!shouldEnforceTimerFullscreen()) {
+  if (!shouldEnforceTimerFullscreen()) {
     syncTimerFullscreenLock();
   }
 }
@@ -102,32 +112,22 @@ function onFocusOrVisibilityForFullscreen(): void {
 function setUpFullscreenReapply(): void {
   if (fullscreenReapplyHandlersBound) return;
   fullscreenReapplyHandlersBound = true;
-  document.addEventListener('fullscreenchange', onFullscreenChangeReenter);
-  document.addEventListener('webkitfullscreenchange', onFullscreenChangeReenter);
+  document.addEventListener('fullscreenchange', onFullscreenChangeRefreshUi);
+  document.addEventListener('webkitfullscreenchange', onFullscreenChangeRefreshUi);
   window.addEventListener('focus', onFocusOrVisibilityForFullscreen);
   document.addEventListener('visibilitychange', onFocusOrVisibilityForFullscreen);
   document.addEventListener('pointerdown', maybeEnforceFullscreenFromUserAction, true);
   document.addEventListener('keydown', maybeEnforceFullscreenFromUserAction, true);
-  if (fullscreenAutoRetryIntervalId == null) {
-    fullscreenAutoRetryIntervalId = window.setInterval(() => {
-      if (!shouldEnforceTimerFullscreen()) return;
-      requestStudyFullscreen();
-    }, 1200);
-  }
 }
 
 function tearDownFullscreenReapply(): void {
   if (!fullscreenReapplyHandlersBound) return;
-  document.removeEventListener('fullscreenchange', onFullscreenChangeReenter);
-  document.removeEventListener('webkitfullscreenchange', onFullscreenChangeReenter);
+  document.removeEventListener('fullscreenchange', onFullscreenChangeRefreshUi);
+  document.removeEventListener('webkitfullscreenchange', onFullscreenChangeRefreshUi);
   window.removeEventListener('focus', onFocusOrVisibilityForFullscreen);
   document.removeEventListener('visibilitychange', onFocusOrVisibilityForFullscreen);
   document.removeEventListener('pointerdown', maybeEnforceFullscreenFromUserAction, true);
   document.removeEventListener('keydown', maybeEnforceFullscreenFromUserAction, true);
-  if (fullscreenAutoRetryIntervalId != null) {
-    window.clearInterval(fullscreenAutoRetryIntervalId);
-    fullscreenAutoRetryIntervalId = null;
-  }
   fullscreenReapplyHandlersBound = false;
 }
 
@@ -138,7 +138,6 @@ function syncTimerFullscreenLock(): void {
     return;
   }
   setUpFullscreenReapply();
-  requestStudyFullscreen();
 }
 
 function injectStyles() {
@@ -163,7 +162,7 @@ function injectStyles() {
       font-size: 28px;
       margin: 0 0 8px;
     }
-    #pomodoro-blur-overlay p {
+    #pomodoro-blur-overlay #pomodoro-overlay-hint {
       font-size: 16px;
       opacity: 0.8;
       margin: 0;
@@ -421,8 +420,6 @@ function createWidget() {
         localIsRunning = true;
         renderWidget();
         chrome.runtime.sendMessage({ type: 'RESUME_TIMER' });
-        // User gesture: helps the first `requestFullscreen` when resuming.
-        requestStudyFullscreen();
       });
     }
   });
@@ -439,13 +436,15 @@ function removeWidget() {
 
 function syncFromStorage() {
   chrome.storage.local.get(
-    ['timeRemaining', 'isRunning', 'task', 'sessionStarted'],
+    ['timeRemaining', 'isRunning', 'task', 'sessionStarted', ...FULLSCREEN_LOCK_STORAGE_KEYS],
     (result) => {
       localTimeRemaining = result.timeRemaining ?? 0;
       task = result.task ?? '';
       localIsRunning = result.isRunning ?? false;
       localSessionStarted = result.sessionStarted ?? false;
+      localFullscreenLockEnabled = readFullscreenLockEnabled(result);
       renderWidget();
+      refreshFullscreenPrompt();
     }
   );
 }
@@ -537,6 +536,16 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (changes.task != null) task = changes.task.newValue ?? '';
   if (changes.isRunning != null) localIsRunning = changes.isRunning.newValue ?? false;
   if (changes.sessionStarted != null) localSessionStarted = changes.sessionStarted.newValue ?? false;
+  if (
+    changes.fullscreenLockDisabled !== undefined ||
+    changes.fullscreenLockEnabled !== undefined
+  ) {
+    chrome.storage.local.get([...FULLSCREEN_LOCK_STORAGE_KEYS], (pref) => {
+      localFullscreenLockEnabled = readFullscreenLockEnabled(pref);
+      refreshFullscreenPrompt();
+      syncTimerFullscreenLock();
+    });
+  }
 
   const mayAffectWidget =
     changes.sessionStarted != null ||
@@ -672,7 +681,7 @@ function createOverlay() {
   overlayEl.id = 'pomodoro-blur-overlay';
   overlayEl.innerHTML = `
     <h2>This tab is blocked</h2>
-    <p>Stay focused — get back to studying! Click anywhere to continue in fullscreen.</p>
+    <p id="pomodoro-overlay-hint"></p>
     <button id="pomodoro-overlay-fullscreen-btn" type="button">Enter fullscreen</button>
   `;
   document.documentElement.appendChild(overlayEl);
@@ -707,11 +716,14 @@ function removeOverlay() {
 
 function applySessionUpdate(studyTaskFromMsg: string) {
   if (studyTaskFromMsg) task = studyTaskFromMsg;
-  chrome.storage.local.get(['sessionStarted', 'timeRemaining', 'isRunning', 'task'], (r) => {
+  chrome.storage.local.get(
+    ['sessionStarted', 'timeRemaining', 'isRunning', 'task', ...FULLSCREEN_LOCK_STORAGE_KEYS],
+    (r) => {
     localTimeRemaining = r.timeRemaining ?? 0;
     localIsRunning = r.isRunning ?? false;
     if (r.task) task = r.task;
     localSessionStarted = r.sessionStarted ?? false;
+    localFullscreenLockEnabled = readFullscreenLockEnabled(r);
     if (r.sessionStarted === undefined && shouldShowWidgetFromStorage(r)) {
       chrome.storage.local.set({ sessionStarted: true });
       localSessionStarted = true;
@@ -725,12 +737,29 @@ function applySessionUpdate(studyTaskFromMsg: string) {
       removeOverlay();
       syncTimerFullscreenLock();
     }
-  });
+    refreshFullscreenPrompt();
+    }
+  );
 }
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message: {
+  type?: string;
+  task?: string;
+  enabled?: unknown;
+  shouldBlur?: boolean;
+}) => {
+  if (message.type === 'SET_FULLSCREEN_LOCK') {
+    if (typeof message.enabled === 'boolean') {
+      localFullscreenLockEnabled = message.enabled;
+    }
+    refreshFullscreenPrompt();
+    syncTimerFullscreenLock();
+    return;
+  }
+
   if (message.type === 'STUDY_SESSION_UPDATE') {
     applySessionUpdate(message.task ?? '');
+    return;
   }
 
   if (message.type === 'BLUR_DECISION') {
@@ -751,12 +780,13 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 chrome.storage.local.get(
-  ['isRunning', 'task', 'timeRemaining', 'sessionStarted'],
+  ['isRunning', 'task', 'timeRemaining', 'sessionStarted', ...FULLSCREEN_LOCK_STORAGE_KEYS],
   (result) => {
     task = result.task ?? '';
     localSessionStarted = result.sessionStarted ?? false;
     localTimeRemaining = result.timeRemaining ?? 0;
     localIsRunning = result.isRunning ?? false;
+    localFullscreenLockEnabled = readFullscreenLockEnabled(result);
     if (result.sessionStarted === undefined && shouldShowWidgetFromStorage(result)) {
       chrome.storage.local.set({ sessionStarted: true });
       localSessionStarted = true;
@@ -764,6 +794,8 @@ chrome.storage.local.get(
     if (shouldShowWidgetFromStorage(result)) {
       createWidget();
     }
+    syncTimerFullscreenLock();
+    refreshFullscreenPrompt();
   }
 );
 
