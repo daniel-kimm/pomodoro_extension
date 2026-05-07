@@ -249,7 +249,7 @@ export default function GroupSessionPage() {
         isRunning: true,
         timeRemaining: initialTime,
         studyTimer,
-        task: '',
+        task: sessionTopic,
       },
       () => sendTimerMessage('START_TIMER')
     );
