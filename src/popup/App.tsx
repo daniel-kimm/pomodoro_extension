@@ -4,10 +4,11 @@ import AuthPage from './pages/AuthPage';
 import OnboardingPage from './pages/OnboardingPage';
 import HomePage from './pages/HomePage';
 import FriendsPage from './pages/FriendsPage';
+import GroupSessionPage from './pages/GroupSessionPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import SettingsPage from './pages/SettingsPage';
 
-type Tab = 'timer' | 'friends' | 'leaderboard' | 'settings';
+type Tab = 'timer' | 'friends' | 'group' | 'leaderboard' | 'settings';
 
 function TimerIcon() {
   return (
@@ -112,6 +113,7 @@ function App() {
       <main className="popup-main">
         {activeTab === 'timer' && <HomePage />}
         {activeTab === 'friends' && <FriendsPage />}
+        {activeTab === 'group' && <GroupSessionPage />}
         {activeTab === 'leaderboard' && <LeaderboardPage />}
         {activeTab === 'settings' && <SettingsPage />}
       </main>
@@ -136,6 +138,14 @@ function App() {
             <FriendsIcon />
           </span>
           <span className="bottom-nav__label">Friends</span>
+        </button>
+        <button
+          type="button"
+          className={'bottom-nav__item' + (activeTab === 'group' ? ' bottom-nav__item--active' : '')}
+          onClick={() => setActiveTab('group')}
+        >
+          <span className="bottom-nav__icon">➕</span>
+          <span className="bottom-nav__label">Group</span>
         </button>
         <button
           type="button"

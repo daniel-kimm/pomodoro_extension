@@ -5,7 +5,6 @@ import { supabase } from '../../lib/supabase';
 interface GroupSession {
   id: string;
   owner_id: string;
-  task: string;
   duration_seconds: number;
   started_at: string;
   is_active: boolean;
@@ -105,7 +104,6 @@ export default function HomePage() {
 
       setStudyTimer(durationMinutes);
       setStudyTimerInput(String(durationMinutes));
-      setTask(session.task);
       setSessionStarted(true);
       setIsRunning(true);
       setTimeRemaining(remaining);
@@ -116,8 +114,6 @@ export default function HomePage() {
           isRunning: true,
           timeRemaining: remaining,
           studyTimer: durationMinutes,
-          task: session.task,
-          // currentTask: session.task,
         },
         () => sendTimerMessage('START_TIMER')
       );
@@ -465,6 +461,7 @@ export default function HomePage() {
           <button type="button" onClick={handleStart} className="btn btn-primary">
             Start Focus Session
           </button>
+<<<<<<< HEAD
 
           {user && friendIds.length > 0 && !groupSession && (
             <button
@@ -476,6 +473,8 @@ export default function HomePage() {
               {groupLoading ? 'Starting Group Session...' : 'Start Group Session'}
             </button>
           )}
+=======
+>>>>>>> 49e3013 (Add dedicated group session tab and active invite/session start flow)
         </div>
       ) : (
         <div className="timer-section">
