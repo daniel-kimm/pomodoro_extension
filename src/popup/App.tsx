@@ -94,6 +94,8 @@ function App() {
                 ? 'Focus sessions that run in the background'
                 : activeTab === 'friends'
                   ? 'Manage your study friends'
+                  : activeTab === 'group'
+                    ? 'Group study'
                   : activeTab === 'leaderboard'
                     ? 'Friend leaderboard'
                     : 'Preferences'}

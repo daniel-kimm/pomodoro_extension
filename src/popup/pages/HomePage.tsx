@@ -1,14 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth, type Profile } from '../../hooks/useAuth';
-import { supabase } from '../../lib/supabase';
-
-interface GroupSession {
-  id: string;
-  owner_id: string;
-  duration_seconds: number;
-  started_at: string;
-  is_active: boolean;
-}
 
 function sendTimerMessage(type: 'START_TIMER' | 'PAUSE_TIMER' | 'RESUME_TIMER' | 'RESET_TIMER'): void {
   if (typeof chrome !== 'undefined' && chrome.runtime?.sendMessage) {
@@ -21,17 +11,12 @@ const TIMER_RING_CIRCUMFERENCE = 2 * Math.PI * TIMER_RING_RADIUS;
 
 export default function HomePage() {
   const [studyTimer, setStudyTimer] = useState<number>(25);
-  const { user, profile } = useAuth();
   const [studyTimerInput, setStudyTimerInput] = useState<string>('25');
   const [task, setTask] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(25 * 60);
   const [sessionStarted, setSessionStarted] = useState<boolean>(false);
   const [isEditingTask, setIsEditingTask] = useState<boolean>(false);
-  const [groupSession, setGroupSession] = useState<GroupSession | null>(null);
-  const [groupMembers, setGroupMembers] = useState<Profile[]>([]);
-  const [friendIds, setFriendIds] = useState<string[]>([]);
-  const [groupLoading, setGroupLoading] = useState(false);
 
   const applyStorage = useCallback((result: { [key: string]: unknown }) => {
     if (result.studyTimer != null && typeof result.studyTimer === 'number') {
@@ -63,133 +48,6 @@ export default function HomePage() {
     );
   }, [applyStorage]);
 
-  const loadFriendIds = useCallback(async () => {
-    if (!user) return;
-    const friendResult = await supabase
-      .from('friendships')
-      .select('requester_id, addressee_id')
-      .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
-      .eq('status', 'accepted');
-
-    const ids = (friendResult.data ?? [])
-      .map((friend) =>
-        friend.requester_id === user.id ? friend.addressee_id : friend.requester_id
-      )
-      .filter((id): id is string => typeof id === 'string');
-
-    setFriendIds(ids);
-  }, [user]);
-
-  const loadGroupMembers = useCallback(async (sessionId: string) => {
-    const { data } = await supabase
-      .from('study_session_members')
-      .select('profile:profile_id(*)')
-      .eq('session_id', sessionId)
-      .is('left_at', null);
-
-    setGroupMembers(
-      (data ?? [])
-        .map((member) => member.profile)
-        .filter((profile): profile is Profile => Boolean(profile))
-    );
-  }, []);
-
-  const syncGroupSessionLocal = useCallback(
-    async (session: GroupSession) => {
-      const now = Date.now();
-      const startedAt = new Date(session.started_at).getTime();
-      const elapsed = Math.max(0, Math.floor((now - startedAt) / 1000));
-      const remaining = Math.max(0, session.duration_seconds - elapsed);
-      const durationMinutes = Math.max(1, Math.ceil(session.duration_seconds / 60));
-
-      setStudyTimer(durationMinutes);
-      setStudyTimerInput(String(durationMinutes));
-      setSessionStarted(true);
-      setIsRunning(true);
-      setTimeRemaining(remaining);
-
-      persist(
-        {
-          sessionStarted: true,
-          isRunning: true,
-          timeRemaining: remaining,
-          studyTimer: durationMinutes,
-        },
-        () => sendTimerMessage('START_TIMER')
-      );
-    },
-    []
-  );
-
-  const loadActiveGroupSession = useCallback(async () => {
-    if (!user) return;
-
-    const membershipResult = await supabase
-      .from('study_session_members')
-      .select('*, session:session_id(*)')
-      .eq('profile_id', user.id)
-      .is('left_at', null)
-      .limit(1);
-
-    if (!membershipResult.data || membershipResult.error || membershipResult.data.length === 0) {
-      setGroupSession(null);
-      setGroupMembers([]);
-      return;
-    }
-
-    const membership = membershipResult.data[0];
-    const session = membership?.session as GroupSession | null;
-    if (!session || !session.is_active) {
-      setGroupSession(null);
-      setGroupMembers([]);
-      return;
-    }
-
-    setGroupSession(session);
-    await loadGroupMembers(session.id);
-    await syncGroupSessionLocal(session);
-  }, [user, loadGroupMembers, syncGroupSessionLocal]);
-
-  useEffect(() => {
-    loadFriendIds();
-    loadActiveGroupSession();
-  }, [loadFriendIds, loadActiveGroupSession]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel(`group-session-${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'study_session_members',
-          filter: `profile_id=eq.${user.id}`,
-        },
-        () => {
-          loadActiveGroupSession();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'study_sessions',
-        },
-        () => {
-          loadActiveGroupSession();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [user, loadActiveGroupSession]);
-
   useEffect(() => {
     if (typeof chrome === 'undefined' || !chrome.storage?.onChanged) return;
     const listener = (
@@ -217,78 +75,6 @@ export default function HomePage() {
     } else {
       done?.();
     }
-  };
-
-  const leaveGroupSession = async () => {
-    if (!groupSession || !user) return;
-    await supabase
-      .from('study_session_members')
-      .update({ left_at: new Date().toISOString() })
-      .eq('session_id', groupSession.id)
-      .eq('profile_id', user.id);
-
-    setGroupSession(null);
-    setGroupMembers([]);
-    setSessionStarted(false);
-    setIsRunning(false);
-    const resetTime = studyTimer * 60;
-    setTimeRemaining(resetTime);
-    persist(
-      {
-        sessionStarted: false,
-        isRunning: false,
-        timeRemaining: resetTime,
-      },
-      () => sendTimerMessage('RESET_TIMER')
-    );
-  };
-
-  const createGroupSession = async () => {
-    if (!user) return;
-    if (!task.trim()) {
-      alert('Please enter a focus task');
-      return;
-    }
-    if (friendIds.length === 0) {
-      alert('Add a study buddy first to start a group session.');
-      return;
-    }
-
-    setGroupLoading(true);
-    const initialTime = studyTimer * 60;
-    const trimmedTask = task.trim().toUpperCase();
-
-    const { data: sessionData, error: sessionError } = await supabase
-      .from('study_sessions')
-      .insert({
-        owner_id: user.id,
-        task: trimmedTask,
-        duration_seconds: initialTime,
-        started_at: new Date().toISOString(),
-        is_active: true,
-      })
-      .select('id, owner_id, task, duration_seconds, started_at, is_active')
-      .single();
-
-    if (sessionError || !sessionData) {
-      console.error('Create session error:', sessionError);
-      setGroupLoading(false);
-      alert(sessionError?.message || 'Unable to create group session.');
-      return;
-    }
-
-    const memberIds = Array.from(new Set([user.id, ...friendIds]));
-    await supabase.from('study_session_members').insert(
-      memberIds.map((profile_id) => ({
-        session_id: sessionData.id,
-        profile_id,
-      }))
-    );
-
-    setGroupSession(sessionData);
-    await loadGroupMembers(sessionData.id);
-    await syncGroupSessionLocal(sessionData);
-    setGroupLoading(false);
   };
 
   const handleStart = () => {
@@ -408,7 +194,7 @@ export default function HomePage() {
             <input
               id="subject"
               type="text"
-              placeholder="e.g., Work on resume, Study math, Build extension..."
+              placeholder="e.g., Study math"
               value={task}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setTask(e.target.value)}
               className="input-field"
@@ -553,17 +339,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {groupSession && (
-            <div className="group-session-banner" style={{ marginBottom: '1rem' }}>
-              <div>
-                <strong>Group session:</strong> {groupMembers.length} member{groupMembers.length === 1 ? '' : 's'} active
-              </div>
-              <button type="button" onClick={leaveGroupSession} className="btn btn-ghost btn-sm">
-                Leave group session
-              </button>
-            </div>
-          )}
-
           <div className="timer-controls">
             {isRunning ? (
               <button type="button" onClick={handlePause} className="btn btn-secondary">
@@ -574,20 +349,14 @@ export default function HomePage() {
                 Resume
               </button>
             ) : null}
-            {groupSession ? (
-              <button type="button" onClick={leaveGroupSession} className="btn btn-secondary">
-                Leave group session
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleReset}
-                className={sessionDone ? 'btn btn-secondary' : 'btn btn-ghost'}
-                title="End session and return to setup"
-              >
-                Reset
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleReset}
+              className={sessionDone ? 'btn btn-secondary' : 'btn btn-ghost'}
+              title="End session and return to setup"
+            >
+              Reset
+            </button>
           </div>
         </div>
       )}

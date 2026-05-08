@@ -37,13 +37,15 @@
 
 html {
   width: 360px;
-  min-height: 500px;
+  height: 560px;
+  max-height: 560px;
   background: linear-gradient(165deg, #18181b 0%, #0f0f10 45%, #050505 100%);
 }
 
 body {
   width: 360px;
-  min-height: 500px;
+  height: 560px;
+  max-height: 560px;
   margin: 0;
   padding: 0;
   font-family: var(--font);
@@ -55,7 +57,8 @@ body {
 
 #root {
   width: 360px;
-  min-height: 500px;
+  height: 560px;
+  max-height: 560px;
   overflow: hidden;
 }
 
@@ -63,7 +66,8 @@ body {
 
 .popup {
   width: 360px;
-  min-height: 500px;
+  height: 560px;
+  max-height: 560px;
   display: flex;
   flex-direction: column;
   font-family: var(--font);
@@ -126,10 +130,12 @@ body {
 
 .popup-main {
   flex: 1;
+  min-height: 0;
   padding: 20px;
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* ========== Bottom Nav ========== */
@@ -1010,6 +1016,166 @@ body {
   font-size: var(--fs-caption);
   color: var(--text-subtle);
   margin-top: 4px;
+}
+
+/* ========== Group Sessions ========== */
+
+.group-session-page {
+  --group-gap: 12px;
+  --group-inner-gap: 10px;
+  --group-text-gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--group-gap);
+}
+
+.page-heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--group-text-gap);
+  padding: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.page-heading h2 {
+  font-size: var(--fs-display);
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.page-heading p,
+.group-session-page p {
+  font-size: var(--fs-small);
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.label {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.group-session-active,
+.group-invite-section,
+.group-members-list,
+.group-invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--group-inner-gap);
+}
+
+.group-session-setup {
+  flex: 1;
+  display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: var(--group-gap);
+}
+
+.group-session-setup .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.group-session-setup .form-group label,
+.group-session-setup .label {
+  color: var(--text);
+  font-size: var(--fs-body);
+  margin-bottom: 0;
+}
+
+.group-session-setup .input-field {
+  padding: 14px 16px;
+  font-size: var(--fs-title);
+}
+
+.group-session-setup > .btn-primary {
+  padding: 14px 18px;
+  font-size: var(--fs-title);
+}
+
+.group-session-card,
+.group-invite-section,
+.group-invite-card {
+  padding: 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.group-session-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--group-inner-gap);
+}
+
+.group-session-card > div,
+.group-invite-card > div:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--group-text-gap);
+}
+
+.group-session-card h3,
+.group-invite-card h3 {
+  font-size: var(--fs-title);
+  line-height: 1.25;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.group-invite-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--group-inner-gap);
+}
+
+.group-invite-card__actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.group-invite-card__from {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.invite-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.invite-pill {
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--fs-small);
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-pill--selected {
+  background: var(--accent);
+  color: #0a0a0b;
+  border-color: var(--accent);
 }
 
 /* ========== Leaderboard Page ========== */
