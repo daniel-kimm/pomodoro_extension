@@ -461,20 +461,6 @@ export default function HomePage() {
           <button type="button" onClick={handleStart} className="btn btn-primary">
             Start Focus Session
           </button>
-<<<<<<< HEAD
-
-          {user && friendIds.length > 0 && !groupSession && (
-            <button
-              type="button"
-              onClick={createGroupSession}
-              className="btn btn-secondary setup-group-btn"
-              disabled={groupLoading}
-            >
-              {groupLoading ? 'Starting Group Session...' : 'Start Group Session'}
-            </button>
-          )}
-=======
->>>>>>> 49e3013 (Add dedicated group session tab and active invite/session start flow)
         </div>
       ) : (
         <div className="timer-section">
