@@ -82,7 +82,7 @@ export default function LeaderboardPage() {
   const userRank = entries.findIndex((e) => e.id === user?.id) + 1;
 
   return (
-    <div className="leaderboard-page">
+    <div className="leaderboard-page page-reveal">
       {/* User stats card */}
       {profile && (
         <div className="leaderboard-me">

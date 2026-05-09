@@ -178,7 +178,7 @@ function scheduleNextTick(): void {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Pomodoro Study Extension installed.');
+  console.log('On Task installed.');
   syncBadge();
   scheduleNextTick();
   broadcastFullscreenLockToAllTabs();

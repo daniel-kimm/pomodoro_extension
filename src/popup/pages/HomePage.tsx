@@ -17,6 +17,7 @@ export default function HomePage() {
   const [timeRemaining, setTimeRemaining] = useState<number>(25 * 60);
   const [sessionStarted, setSessionStarted] = useState<boolean>(false);
   const [isEditingTask, setIsEditingTask] = useState<boolean>(false);
+  const [storageLoaded, setStorageLoaded] = useState(false);
 
   const applyStorage = useCallback((result: { [key: string]: unknown }) => {
     if (result.studyTimer != null && typeof result.studyTimer === 'number') {
@@ -30,7 +31,10 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (typeof chrome === 'undefined' || !chrome.storage) return;
+    if (typeof chrome === 'undefined' || !chrome.storage) {
+      setStorageLoaded(true);
+      return;
+    }
     chrome.storage.local.get(
       ['studyTimer', 'task', 'isRunning', 'timeRemaining', 'sessionStarted'],
       (result) => {
@@ -44,6 +48,7 @@ export default function HomePage() {
           setSessionStarted(true);
           chrome.storage.local.set({ sessionStarted: true });
         }
+        setStorageLoaded(true);
       }
     );
   }, [applyStorage]);
@@ -185,10 +190,18 @@ export default function HomePage() {
     strokeDashoffset: TIMER_RING_CIRCUMFERENCE * (1 - timerProgress),
   };
 
+  if (!storageLoaded) {
+    return (
+      <div className="timer-section">
+        <div className="leaderboard-loading">Loading timer…</div>
+      </div>
+    );
+  }
+
   return (
     <>
       {showSetup ? (
-        <div className="setup-section">
+        <div className="setup-section page-reveal">
           <div className="form-group">
             <label htmlFor="task">Focus Task</label>
             <input
@@ -249,7 +262,7 @@ export default function HomePage() {
           </button>
         </div>
       ) : (
-        <div className="timer-section">
+        <div className="timer-section page-reveal">
           <div
             className={
               'timer-status ' +

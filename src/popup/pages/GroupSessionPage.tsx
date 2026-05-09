@@ -33,6 +33,7 @@ export default function GroupSessionPage() {
   const [groupInvites, setGroupInvites] = useState<GroupSessionInvite[]>([]);
   const [groupLoading, setGroupLoading] = useState(false);
   const [inviteActionId, setInviteActionId] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const persist = (partial: Record<string, unknown>, done?: () => void) => {
     if (typeof chrome !== 'undefined' && chrome.storage) {
@@ -238,8 +239,15 @@ export default function GroupSessionPage() {
   }, [user, getAcceptedGroupSessionIds, getDeclinedGroupSessionIds, loadGroupMembers]);
 
   useEffect(() => {
-    loadFriends();
-    loadActiveGroupSession();
+    let mounted = true;
+
+    Promise.all([loadFriends(), loadActiveGroupSession()]).finally(() => {
+      if (mounted) setInitialLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+    };
   }, [loadFriends, loadActiveGroupSession]);
 
   useEffect(() => {
@@ -469,8 +477,16 @@ export default function GroupSessionPage() {
   );
   const canInviteMore = Boolean(groupSession && groupSession.owner_id === user?.id);
 
+  if (initialLoading) {
+    return (
+      <div className="group-session-page">
+        <div className="leaderboard-loading">Loading group study…</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="group-session-page">
+    <div className="group-session-page page-reveal">
       {groupInvites.length > 0 && (
         <div className="group-invite-section">
           <p className="label">Pending invites</p>

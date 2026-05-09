@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Pomodoro Study Extension",
+  "name": "On Task",
   "version": "1.0.0",
   "description": "Chrome extension built with React",
   "action": {
     "default_popup": "index.html",
-    "default_title": "Pomodoro Study"
+    "default_title": "On Task"
   },
   "background": {
     "service_worker": "src/background.ts",

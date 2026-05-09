@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import onTaskLogo from '../assets/on-task-logo.png';
 
 export default function AuthPage() {
   const { signInWithGoogle } = useAuth();
@@ -19,9 +20,9 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="auth-page">
+    <div className="auth-page page-reveal">
       <div className="auth-hero">
-        <h1 className="auth-title">POMODORO STUDY</h1>
+        <img className="app-logo app-logo--auth" src={onTaskLogo} alt="On Task" />
       </div>
 
       <div className="auth-features">

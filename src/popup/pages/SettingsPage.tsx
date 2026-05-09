@@ -58,7 +58,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="settings-page">
+    <div className="settings-page page-reveal">
       <div className="settings-row">
         <div className="settings-row__text">
           <div className="settings-row__title">Fullscreen lock</div>

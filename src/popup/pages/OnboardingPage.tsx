@@ -51,10 +51,9 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="onboarding-page">
+    <div className="onboarding-page page-reveal">
       <div className="onboarding-header">
-        <div className="auth-icon" aria-hidden>👋</div>
-        <h1 className="auth-title">Welcome!</h1>
+        <h1 className="auth-title">WELCOME</h1>
         <p className="auth-subtitle">Set up your profile to get started</p>
       </div>
 

@@ -21,6 +21,7 @@ export default function FriendsPage() {
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
   const [searching, setSearching] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const loadFriends = useCallback(async () => {
     if (!user) return;
@@ -92,8 +93,15 @@ export default function FriendsPage() {
   }, [user]);
 
   useEffect(() => {
-    loadFriends();
-    loadIncoming();
+    let mounted = true;
+
+    Promise.all([loadFriends(), loadIncoming()]).finally(() => {
+      if (mounted) setInitialLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+    };
   }, [loadFriends, loadIncoming]);
 
   const handleSearch = async () => {
@@ -161,8 +169,16 @@ export default function FriendsPage() {
     return null;
   };
 
+  if (initialLoading) {
+    return (
+      <div className="friends-page">
+        <div className="leaderboard-loading">Loading friends…</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="friends-page">
+    <div className="friends-page page-reveal">
       {/* Search */}
       <div className="friends-search">
         <div className="friends-search__row">

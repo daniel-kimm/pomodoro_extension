@@ -7,6 +7,7 @@ import FriendsPage from './pages/FriendsPage';
 import GroupSessionPage from './pages/GroupSessionPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import SettingsPage from './pages/SettingsPage';
+import onTaskLogo from './assets/on-task-logo.png';
 
 type Tab = 'timer' | 'friends' | 'group' | 'leaderboard' | 'settings';
 
@@ -88,18 +89,7 @@ function App() {
       <header className="popup-header">
         <div className="popup-header__brand">
           <div className="popup-header__text">
-            <h1>POMODORO STUDY</h1>
-            <p>
-              {activeTab === 'timer'
-                ? 'Focus sessions that run in the background'
-                : activeTab === 'friends'
-                  ? 'Manage your study friends'
-                  : activeTab === 'group'
-                    ? 'Group study'
-                  : activeTab === 'leaderboard'
-                    ? 'Friend leaderboard'
-                    : 'Preferences'}
-            </p>
+            <img className="app-logo app-logo--header" src={onTaskLogo} alt="On Task" />
           </div>
         </div>
         <button
