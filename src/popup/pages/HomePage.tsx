@@ -105,7 +105,7 @@ export default function HomePage() {
     if (!newTask) return;
 
     persist({ task: newTask }, async () => {
-      await fetch('http://localhost:3001/clear-cache', {
+      await fetch('http://localhost:3002/clear-cache', {
         method: 'POST',
       });
 

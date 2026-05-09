@@ -164,21 +164,6 @@ export default function GroupSessionPage() {
     const acceptedSessionIds = await getAcceptedGroupSessionIds();
     const declinedSessionIds = await getDeclinedGroupSessionIds();
 
-    const ownerSessionResult = await supabase
-      .from('study_sessions')
-      .select('id, owner_id, task, duration_seconds, started_at, is_active')
-      .eq('owner_id', user.id)
-      .eq('is_active', true)
-      .limit(1);
-
-    const ownerSession = (ownerSessionResult.data?.[0] ?? null) as GroupSession | null;
-    if (ownerSession) {
-      setGroupSession(ownerSession);
-      setGroupInvites([]);
-      await loadGroupMembers(ownerSession.id);
-      return;
-    }
-
     const membershipResult = await supabase
       .from('study_session_members')
       .select('*, session:session_id(*)')
@@ -222,7 +207,7 @@ export default function GroupSessionPage() {
           ? membership.session[0]
           : membership.session;
 
-        return session?.is_active && session.owner_id !== user.id
+        return session?.is_active
           ? {
               id: membership.id,
               session_id: membership.session_id,
@@ -237,7 +222,7 @@ export default function GroupSessionPage() {
     );
 
     const joinedInvite = visibleSessions.find((invite) =>
-      acceptedSessionIds.includes(invite.session.id)
+      invite.session.owner_id === user.id || acceptedSessionIds.includes(invite.session.id)
     );
 
     setGroupInvites(visibleSessions.filter((invite) => invite.session.id !== joinedInvite?.session.id));
@@ -393,19 +378,14 @@ export default function GroupSessionPage() {
 
   const leaveGroupSession = async () => {
     if (!groupSession || !user) return;
-    const leavingOwnedSession = groupSession.owner_id === user.id;
+    const { error: sessionError } = await supabase
+      .from('study_sessions')
+      .update({ is_active: false })
+      .eq('id', groupSession.id);
 
-    if (leavingOwnedSession) {
-      const { error } = await supabase
-        .from('study_sessions')
-        .update({ is_active: false })
-        .eq('id', groupSession.id)
-        .eq('owner_id', user.id);
-
-      if (error) {
-        alert('Unable to end this group session. Please try again.');
-        return;
-      }
+    if (sessionError) {
+      alert('Unable to end this group session. Please try again.');
+      return;
     }
 
     const { error } = await supabase
@@ -426,10 +406,8 @@ export default function GroupSessionPage() {
     await saveAcceptedGroupSessionIds(
       acceptedSessionIds.filter((sessionId) => sessionId !== groupSession.id)
     );
-
-    if (!leavingOwnedSession) {
-      await loadActiveGroupSession();
-    }
+    const declinedSessionIds = await getDeclinedGroupSessionIds();
+    await saveDeclinedGroupSessionIds([...declinedSessionIds, groupSession.id]);
   };
 
   const acceptGroupInvite = async (invite: GroupSessionInvite) => {
@@ -493,10 +471,6 @@ export default function GroupSessionPage() {
 
   return (
     <div className="group-session-page">
-      <div className="page-heading">
-        <p>Start a group session, send invites, or join a session you were invited to.</p>
-      </div>
-
       {groupInvites.length > 0 && (
         <div className="group-invite-section">
           <p className="label">Pending invites</p>

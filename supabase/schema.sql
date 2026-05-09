@@ -89,6 +89,25 @@ create policy "Owners can update sessions"
   on public.study_sessions for update
   using (auth.uid() = owner_id);
 
+create policy "Active members can end sessions"
+  on public.study_sessions for update
+  using (
+    exists (
+      select 1 from public.study_session_members m
+      where m.session_id = public.study_sessions.id
+        and m.profile_id = auth.uid()
+        and m.left_at is null
+    )
+  )
+  with check (
+    exists (
+      select 1 from public.study_session_members m
+      where m.session_id = public.study_sessions.id
+        and m.profile_id = auth.uid()
+        and m.left_at is null
+    )
+  );
+
 create table public.study_session_members (
   id          uuid default gen_random_uuid() primary key,
   session_id  uuid references public.study_sessions(id) on delete cascade not null,

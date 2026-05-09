@@ -411,7 +411,7 @@ async function classifyTab(
       metadata,
     });
 
-    const response = await fetch('http://localhost:3001/classify', {
+    const response = await fetch('http://localhost:3002/classify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

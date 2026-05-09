@@ -21,24 +21,17 @@ export default function AuthPage() {
   return (
     <div className="auth-page">
       <div className="auth-hero">
-        <div className="auth-icon" aria-hidden>🍅</div>
-        <h1 className="auth-title">Pomodoro Study</h1>
-        <p className="auth-subtitle">
-          Focus sessions, study groups, and friendly competition
-        </p>
+        <h1 className="auth-title">POMODORO STUDY</h1>
       </div>
 
       <div className="auth-features">
         <div className="auth-feature">
-          <span className="auth-feature__icon">⏱</span>
           <span>Timed focus sessions</span>
         </div>
         <div className="auth-feature">
-          <span className="auth-feature__icon">👥</span>
           <span>Study with friends</span>
         </div>
         <div className="auth-feature">
-          <span className="auth-feature__icon">🏆</span>
           <span>Leaderboards</span>
         </div>
       </div>
